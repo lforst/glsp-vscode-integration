@@ -31,42 +31,7 @@ import {
     ExportSvgAction
 } from './actions';
 
-export interface GlspDiagramDocument extends vscode.CustomDocument {
-    readonly onSaveDocumentEvent: vscode.Event<{ cancellation: vscode.CancellationToken }>;
-    readonly onSaveDocumentAsEvent: vscode.Event<{ destination: vscode.Uri; cancellation: vscode.CancellationToken }>;
-    readonly onRevertDocumentEvent: vscode.Event<{ cancellation: vscode.CancellationToken; diagramType: string }>;
-    readonly onBackupDocumentEvent: vscode.Event<{ context: vscode.CustomDocumentBackupContext; cancellation: vscode.CancellationToken }>;
-    readonly onDocumentSavedEventEmitter: vscode.EventEmitter<void>;
-}
-
-export interface GlspClientWrapper {
-    readonly clientId: string;
-    readonly webviewPanel: vscode.WebviewPanel;
-    readonly document: GlspDiagramDocument;
-    readonly onDidChangeCustomDocumentEventEmitter: vscode.EventEmitter<vscode.CustomDocumentEditEvent<GlspDiagramDocument>>;
-    readonly onClientReceiveEmitter: vscode.EventEmitter<unknown>;
-    readonly onClientSend: vscode.Event<unknown>;
-}
-
-export interface GlspServerWrapper {
-    readonly onServerReceiveEmitter: vscode.EventEmitter<unknown>;
-    readonly onServerSend: vscode.Event<unknown>;
-}
-
-export interface GlspVscodeAdapterConfiguration {
-    server: GlspServerWrapper;
-    logging?: boolean;
-    onBeforeReceiveMessageFromClient?: (
-        message: unknown,
-        callback: (newMessage: unknown | undefined, shouldBeProcessedByAdapter?: boolean) => void
-    ) => void;
-    onBeforeReceiveMessageFromServer?: (
-        message: unknown,
-        callback: (newMessage: unknown | undefined, shouldBeProcessedByAdapter?: boolean) => void
-    ) => void;
-    onBeforePropagateMessageToServer?: (originalMessage: unknown, processedMessage: unknown, messageChanged: boolean) => unknown | undefined;
-    onBeforePropagateMessageToClient?: (originalMessage: unknown, processedMessage: unknown, messageChanged: boolean) => unknown | undefined;
-}
+import { GlspVscodeAdapterConfiguration, GlspClientWrapper } from './types';
 
 export class GlspVscodeAdapter implements vscode.Disposable {
     private readonly options: Required<GlspVscodeAdapterConfiguration>;

@@ -16,3 +16,4 @@
 
 export * from './actions';
 export * from './glsp-vscode-adapter';
+export * from './types';
