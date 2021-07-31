@@ -15,7 +15,6 @@
  ********************************************************************************/
 
 export * from './action';
-export * from './context-menu';
 export * from './export';
 export * from './save-state';
 export * from './external-navigation';
