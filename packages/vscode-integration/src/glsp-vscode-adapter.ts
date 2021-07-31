@@ -44,23 +44,23 @@ export interface GlspClientWrapper {
     readonly webviewPanel: vscode.WebviewPanel;
     readonly document: GlspDiagramDocument;
     readonly onDidChangeCustomDocumentEventEmitter: vscode.EventEmitter<vscode.CustomDocumentEditEvent<GlspDiagramDocument>>;
-    readonly onClientRecieveEmitter: vscode.EventEmitter<unknown>;
+    readonly onClientReceiveEmitter: vscode.EventEmitter<unknown>;
     readonly onClientSend: vscode.Event<unknown>;
 }
 
 export interface GlspServerWrapper {
-    readonly onServerRecieveEmitter: vscode.EventEmitter<unknown>;
+    readonly onServerReceiveEmitter: vscode.EventEmitter<unknown>;
     readonly onServerSend: vscode.Event<unknown>;
 }
 
 export interface GlspVscodeAdapterConfiguration {
     server: GlspServerWrapper;
     logging?: boolean;
-    onBeforeRecieveMessageFromClient?: (
+    onBeforeReceiveMessageFromClient?: (
         message: unknown,
         callback: (newMessage: unknown | undefined, shouldBeProcessedByAdapter?: boolean) => void
     ) => void;
-    onBeforeRecieveMessageFromServer?: (
+    onBeforeReceiveMessageFromServer?: (
         message: unknown,
         callback: (newMessage: unknown | undefined, shouldBeProcessedByAdapter?: boolean) => void
     ) => void;
@@ -82,10 +82,10 @@ export class GlspVscodeAdapter implements vscode.Disposable {
         // Create default options
         this.options = {
             logging: false,
-            onBeforeRecieveMessageFromClient: (message, callback) => {
+            onBeforeReceiveMessageFromClient: (message, callback) => {
                 callback(message, true);
             },
-            onBeforeRecieveMessageFromServer: (message, callback) => {
+            onBeforeReceiveMessageFromServer: (message, callback) => {
                 callback(message, true);
             },
             onBeforePropagateMessageToClient: (originalMessage, processedMessage) => processedMessage,
@@ -104,7 +104,7 @@ export class GlspVscodeAdapter implements vscode.Disposable {
                 }
             }
 
-            this.options.onBeforeRecieveMessageFromServer(message, (newMessage, shouldBeProcessedByAdapter) => {
+            this.options.onBeforeReceiveMessageFromServer(message, (newMessage, shouldBeProcessedByAdapter) => {
                 if (shouldBeProcessedByAdapter) {
                     this.processMessage(newMessage, 'server', (processedMessage, messageChanged) => {
                         const filteredMessage = this.options.onBeforePropagateMessageToClient(newMessage, processedMessage, messageChanged);
@@ -140,18 +140,18 @@ export class GlspVscodeAdapter implements vscode.Disposable {
                 }
             }
 
-            this.options.onBeforeRecieveMessageFromClient(message, (newMessage, shouldBeProcessedByAdapter) => {
+            this.options.onBeforeReceiveMessageFromClient(message, (newMessage, shouldBeProcessedByAdapter) => {
                 if (shouldBeProcessedByAdapter) {
                     this.processMessage(newMessage, 'client', (processedMessage, messageChanged) => {
                         const filteredMessage = this.options.onBeforePropagateMessageToServer(newMessage, processedMessage, messageChanged);
                         if (typeof filteredMessage !== 'undefined') {
-                            this.options.server.onServerRecieveEmitter.fire(filteredMessage);
+                            this.options.server.onServerReceiveEmitter.fire(filteredMessage);
                         }
                     });
                 } else {
                     const filteredMessage = this.options.onBeforePropagateMessageToServer(newMessage, newMessage, false);
                     if (typeof filteredMessage !== 'undefined') {
-                        this.options.server.onServerRecieveEmitter.fire(filteredMessage);
+                        this.options.server.onServerReceiveEmitter.fire(filteredMessage);
                     }
                 }
             });
@@ -194,7 +194,7 @@ export class GlspVscodeAdapter implements vscode.Disposable {
     sendActionToActiveClient(action: unknown): void {
         this.clientMap.forEach(client => {
             if (client.webviewPanel.active) {
-                client.onClientRecieveEmitter.fire({
+                client.onClientReceiveEmitter.fire({
                     clientId: client.clientId,
                     action: action,
                     __localDispatch: true
@@ -206,7 +206,7 @@ export class GlspVscodeAdapter implements vscode.Disposable {
     private sendMessageToClient(clientId: string, message: unknown): void {
         const client = this.clientMap.get(clientId);
         if (client) {
-            client.onClientRecieveEmitter.fire(message);
+            client.onClientReceiveEmitter.fire(message);
         }
     }
 

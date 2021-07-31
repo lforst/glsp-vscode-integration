@@ -94,7 +94,7 @@ export class WorkflowEditorProvider implements vscode.CustomEditorProvider<Workf
             clientId: `${DIAGRAM_TYPE}_${this.viewCount++}`
         };
 
-        // Prmise that resolves when sprotty sends its ready-message
+        // Promise that resolves when sprotty sends its ready-message
         const webviewReadyPromise = new Promise<void>(resolve => {
             const messageListener = webviewPanel.webview.onDidReceiveMessage((message: unknown) => {
                 if (isWebviewReadyMessage(message)) {
@@ -118,15 +118,15 @@ export class WorkflowEditorProvider implements vscode.CustomEditorProvider<Workf
             });
         };
 
-        const recieveMessageFromServerEmitter = new vscode.EventEmitter<unknown>();
+        const receiveMessageFromServerEmitter = new vscode.EventEmitter<unknown>();
         const sendMessageToServerEmitter = new vscode.EventEmitter<unknown>();
 
         webviewPanel.onDidDispose(() => {
-            recieveMessageFromServerEmitter.dispose();
+            receiveMessageFromServerEmitter.dispose();
             sendMessageToServerEmitter.dispose();
         });
 
-        // Listen for Messages from webview (only after ready-message has been recieved)
+        // Listen for Messages from webview (only after ready-message has been received)
         webviewReadyPromise.then(() => {
             webviewPanel.webview.onDidReceiveMessage((message: unknown) => {
                 if (isActionMessage(message)) {
@@ -136,7 +136,7 @@ export class WorkflowEditorProvider implements vscode.CustomEditorProvider<Workf
         });
 
         // Listen for Messages from server
-        recieveMessageFromServerEmitter.event(message => {
+        receiveMessageFromServerEmitter.event(message => {
             if (isActionMessage(message)) {
                 sendMessageToWebview(message);
             }
@@ -145,7 +145,7 @@ export class WorkflowEditorProvider implements vscode.CustomEditorProvider<Workf
         // Register document/diagram panel/model in vscode adapter
         this.vscodeAdapter.registerClient({
             clientId: sprottyDiagramIdentifier.clientId,
-            onClientRecieveEmitter: recieveMessageFromServerEmitter,
+            onClientReceiveEmitter: receiveMessageFromServerEmitter,
             onClientSend: sendMessageToServerEmitter.event,
             webviewPanel: webviewPanel,
             document: document,

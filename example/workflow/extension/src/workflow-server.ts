@@ -25,6 +25,7 @@ export interface JavaSocketServerLaunchOptions {
     readonly jarPath: string;
     /** Port on which the server should listen for new client connections */
     readonly serverPort: number;
+    /** Set to `true` if server stdout and stderr should be printed in extension host console. Default: `false` */
     readonly logging?: boolean;
     /** Additional arguments that should be passed when starting the server process. */
     readonly additionalArgs?: string[];

@@ -29,7 +29,7 @@ interface Options {
 }
 
 export class WorkflowServerWrapper implements GlspServerWrapper, vscode.Disposable {
-    readonly onServerRecieveEmitter = new vscode.EventEmitter<unknown>();
+    readonly onServerReceiveEmitter = new vscode.EventEmitter<unknown>();
     readonly onServerSendEmitter = new vscode.EventEmitter<unknown>();
     readonly onServerSend: vscode.Event<unknown>;
 
@@ -56,7 +56,7 @@ export class WorkflowServerWrapper implements GlspServerWrapper, vscode.Disposab
             connectionProvider: connection
         });
 
-        this.onServerRecieveEmitter.event(message => {
+        this.onServerReceiveEmitter.event(message => {
             this.onReady.then(() => {
                 if (isActionMessage(message)) {
                     this.glspClient.sendActionMessage(message);
@@ -85,7 +85,7 @@ export class WorkflowServerWrapper implements GlspServerWrapper, vscode.Disposab
     }
 
     dispose(): void {
-        this.onServerRecieveEmitter.dispose();
+        this.onServerReceiveEmitter.dispose();
         this.onServerSendEmitter.dispose();
         this.stop();
     }
