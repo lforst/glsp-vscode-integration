@@ -13,37 +13,82 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
-import { GlspDiagramEditorContext, NavigateAction } from '@eclipse-glsp/vscode-integration';
-import { join, resolve } from 'path';
+
 import * as vscode from 'vscode';
+import * as process from 'process';
+import * as path from 'path';
 
-import { WorkflowGlspDiagramEditorContext } from './workflow-glsp-diagram-editor-context';
+import { GlspVscodeAdapter, NavigateAction, LayoutOperation, FitToScreenAction, CenterAction, RequestExportSvgAction } from '@eclipse-glsp/vscode-integration';
 
-export const SERVER_DIR = join(__dirname, '..', 'server');
-export const JAR_FILE = resolve(join(SERVER_DIR, 'org.eclipse.glsp.example.workflow-0.9.0-SNAPSHOT-glsp.jar'));
+import { WorkflowServer } from './workflow-server';
+import { WorkflowServerAdapter } from './workflow-server-adapter';
+import { WorkflowEditorProvider } from './workflow-editor-provider';
 
-let editorContext: GlspDiagramEditorContext;
+const DEFAULT_SERVER_PORT = '5007';
 
-export function activate(context: vscode.ExtensionContext): void {
-    editorContext = new WorkflowGlspDiagramEditorContext(context);
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
+    if (process.env.GLSP_SERVER_DEBUG !== 'true') {
+        const workflowServer = new WorkflowServer({
+            jarPath: path.join(__dirname, '../server/org.eclipse.glsp.example.workflow-0.9.0-SNAPSHOT-glsp.jar'),
+            serverPort: JSON.parse(process.env.GLSP_SERVER_PORT || DEFAULT_SERVER_PORT),
+            additionalArgs: ['--fileLog', 'true', '--logDir', path.join(__dirname, '../server')],
+            logging: true
+        });
+        context.subscriptions.push(workflowServer);
+        await workflowServer.start();
+    }
+
+    const workflowServerAdapter = new WorkflowServerAdapter({
+        clientId: 'glsp.workflow',
+        extensionPrefix: 'workflow',
+        serverPort: JSON.parse(process.env.GLSP_SERVER_PORT || DEFAULT_SERVER_PORT)
+    });
+
+    const glspVscodeAdapter = new GlspVscodeAdapter({
+        server: workflowServerAdapter,
+        logging: true
+    });
+
+    const customEditorProvider = vscode.window.registerCustomEditorProvider(
+        'workflow.glspDiagram',
+        new WorkflowEditorProvider(context, glspVscodeAdapter),
+        {
+            webviewOptions: { retainContextWhenHidden: true },
+            supportsMultipleEditorsPerDocument: false
+        }
+    );
+
+    context.subscriptions.push(workflowServerAdapter, glspVscodeAdapter, customEditorProvider);
+    workflowServerAdapter.start();
+
+    let selectedElements: string[] = [];
 
     context.subscriptions.push(
+        vscode.commands.registerCommand('workflow.fit', () => {
+            glspVscodeAdapter.sendActionToActiveClient(new FitToScreenAction(selectedElements));
+        }),
+        vscode.commands.registerCommand('workflow.center', () => {
+            glspVscodeAdapter.sendActionToActiveClient(new CenterAction(selectedElements));
+        }),
+        vscode.commands.registerCommand('workflow.layout', () => {
+            glspVscodeAdapter.sendActionToActiveClient(new LayoutOperation());
+        }),
         vscode.commands.registerCommand('workflow.goToNextNode', () => {
-            editorContext.dispatchActionToWebview(new NavigateAction('next'));
+            glspVscodeAdapter.sendActionToActiveClient(new NavigateAction('next'));
         }),
         vscode.commands.registerCommand('workflow.goToPreviousNode', () => {
-            editorContext.dispatchActionToWebview(new NavigateAction('previous'));
+            glspVscodeAdapter.sendActionToActiveClient(new NavigateAction('previous'));
         }),
         vscode.commands.registerCommand('workflow.showDocumentation', () => {
-            editorContext.dispatchActionToWebview(new NavigateAction('documentation'));
+            glspVscodeAdapter.sendActionToActiveClient(new NavigateAction('documentation'));
+        }),
+        vscode.commands.registerCommand('workflow.exportAsSVG', () => {
+            glspVscodeAdapter.sendActionToActiveClient(new RequestExportSvgAction());
+        }),
+        glspVscodeAdapter.onSelectionUpdate(n => {
+            selectedElements = n;
+            vscode.commands.executeCommand('setContext', 'workflow-editor-selected-elements-amount', n.length);
         })
     );
-}
-
-export function deactivate(): Thenable<void> {
-    if (!editorContext) {
-        return Promise.resolve(undefined);
-    }
-    return editorContext.deactivateGLSPClient();
 }
 

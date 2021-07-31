@@ -1,5 +1,5 @@
 /********************************************************************************
- * Copyright (c) 2021 EclipseSource and others.
+ * Copyright (c) 2021 EclipseSource and  others.
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v. 2.0 which is available at
@@ -13,20 +13,13 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
-export namespace GLSPEnvVariable {
-    export const SERVER_DEBUG = 'GLSP_SERVER_DEBUG';
-    export const SERVER_PORT = 'GLSP_SERVER_PORT';
 
-    export function isServerDebug(): boolean {
-        const envVar = process.env[SERVER_DEBUG];
-        return envVar !== undefined && JSON.parse(envVar);
-    }
-
-    export function getServerPort(): number | undefined {
-        const envVar = process.env[SERVER_PORT];
-        if (envVar) {
-            return JSON.parse(envVar);
-        }
-        return;
-    }
-}
+export * from './action';
+export * from './context-menu';
+export * from './export';
+export * from './save-state';
+export * from './external-navigation';
+export * from './markers';
+export * from './navigation';
+export * from './operation';
+export * from './selection';

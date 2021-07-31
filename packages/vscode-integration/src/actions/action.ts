@@ -13,7 +13,23 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
-export * from './disposable';
-export * from './promise';
-export * from './glsp-env-var';
-export * from './glsp-java-server-args';
+/* eslint-disable no-null/no-null */
+
+export interface Action {
+    readonly kind: string;
+}
+
+export interface ActionMessage {
+    clientId: string;
+    action: Action;
+}
+
+export function isAction(object: any): object is Action {
+    return typeof object === 'object' && object !== null && 'kind' in object && typeof object['kind'] === 'string';
+}
+
+export function isActionMessage(object: any): object is ActionMessage {
+    return typeof object === 'object' && object !== null &&
+        'clientId' in object && typeof object['clientId'] === 'string' &&
+        'action' in object && isAction(object.action);
+}

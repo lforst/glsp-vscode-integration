@@ -1,5 +1,5 @@
 /********************************************************************************
- * Copyright (c) 2021 EclipseSource and others.
+ * Copyright (c) 2021 EclipseSource and  others.
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v. 2.0 which is available at
@@ -14,19 +14,20 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-export namespace GLSPJavaServerArgs {
-    /**
-     * Utility function to create the additional launch args for a GLSP Java Server
-     * to enable file logging.
-     * @param logDir Path to the directy where the log files should be stored
-     * @param disableConsolelogging Flag to indicate wether default console logging should be disabled
-     */
-    export function enableFileLogging(logDir: string, disableConsolelogging = true): string[] {
-        const additionalArgs = ['--fileLog', 'true', '--logDir', logDir];
-        if (disableConsolelogging) {
-            additionalArgs.push('--consoleLog');
-            additionalArgs.push('false');
-        }
-        return additionalArgs;
+import { Action } from './action';
+
+export class SelectAction implements Action {
+    static readonly KIND = 'elementSelected';
+
+    constructor(
+        public readonly selectedElementsIDs: string[] = [],
+        public readonly deselectedElementsIDs: string[] = [],
+        public readonly kind = SelectAction.KIND
+    ) { }
+
+    static is(action?: Action): action is SelectAction {
+        return action !== undefined && action.kind === SelectAction.KIND
+            && 'selectedElementsIDs' in action
+            && 'deselectedElementsIDs' in action;
     }
 }

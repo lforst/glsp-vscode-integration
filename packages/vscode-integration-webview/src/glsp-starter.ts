@@ -52,6 +52,12 @@ export abstract class GLSPStarter extends SprottyStarter {
      *  All kinds of actions that should (also) be delegated to and handled by the vscode extension
      */
     protected get extensionActionKinds(): string[] {
-        return [NavigateToExternalTargetAction.KIND];
+        return [
+            NavigateToExternalTargetAction.KIND,
+            'requestClipboardData',
+            'setClipboardData',
+            'elementSelected',
+            'exportSvg'
+        ];
     }
 }
