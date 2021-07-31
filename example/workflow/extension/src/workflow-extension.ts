@@ -21,7 +21,7 @@ import * as path from 'path';
 import { GlspVscodeAdapter, NavigateAction, LayoutOperation, FitToScreenAction, CenterAction, RequestExportSvgAction } from '@eclipse-glsp/vscode-integration';
 
 import { WorkflowServer } from './workflow-server';
-import { WorkflowServerAdapter } from './workflow-server-adapter';
+import { WorkflowServerWrapper } from './workflow-server-adapter';
 import { WorkflowEditorProvider } from './workflow-editor-provider';
 
 const DEFAULT_SERVER_PORT = '5007';
@@ -38,7 +38,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await workflowServer.start();
     }
 
-    const workflowServerAdapter = new WorkflowServerAdapter({
+    const workflowServerAdapter = new WorkflowServerWrapper({
         clientId: 'glsp.workflow',
         extensionPrefix: 'workflow',
         serverPort: JSON.parse(process.env.GLSP_SERVER_PORT || DEFAULT_SERVER_PORT)

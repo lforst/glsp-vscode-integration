@@ -39,7 +39,7 @@ export interface GlspDiagramDocument extends vscode.CustomDocument {
     readonly onDocumentSavedEventEmitter: vscode.EventEmitter<void>;
 }
 
-export interface GlspClientAdapter {
+export interface GlspClientWrapper {
     readonly clientId: string;
     readonly webviewPanel: vscode.WebviewPanel;
     readonly document: GlspDiagramDocument;
@@ -48,13 +48,13 @@ export interface GlspClientAdapter {
     readonly onClientSend: vscode.Event<unknown>;
 }
 
-export interface GlspServerAdapter {
+export interface GlspServerWrapper {
     readonly onServerRecieveEmitter: vscode.EventEmitter<unknown>;
     readonly onServerSend: vscode.Event<unknown>;
 }
 
 export interface GlspVscodeAdapterConfiguration {
-    server: GlspServerAdapter;
+    server: GlspServerWrapper;
     logging?: boolean;
     onBeforeRecieveMessageFromClient?: (
         message: unknown,
@@ -70,7 +70,7 @@ export interface GlspVscodeAdapterConfiguration {
 
 export class GlspVscodeAdapter implements vscode.Disposable {
     private readonly options: Required<GlspVscodeAdapterConfiguration>;
-    private readonly clientMap = new Map<string, GlspClientAdapter>();
+    private readonly clientMap = new Map<string, GlspClientWrapper>();
     private readonly clientSelectionMap = new Map<string, string[]>();
     private readonly diagnostics = vscode.languages.createDiagnosticCollection();
     private readonly selectionUpdateEmitter = new vscode.EventEmitter<string[]>();
@@ -128,7 +128,7 @@ export class GlspVscodeAdapter implements vscode.Disposable {
         );
     }
 
-    registerClientAdapter(client: GlspClientAdapter): void {
+    registerClient(client: GlspClientWrapper): void {
         this.clientMap.set(client.clientId, client);
 
         const clientMessageListener = client.onClientSend(message => {

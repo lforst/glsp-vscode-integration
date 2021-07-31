@@ -143,7 +143,7 @@ export class WorkflowEditorProvider implements vscode.CustomEditorProvider<Workf
         });
 
         // Register document/diagram panel/model in vscode adapter
-        this.vscodeAdapter.registerClientAdapter({
+        this.vscodeAdapter.registerClient({
             clientId: sprottyDiagramIdentifier.clientId,
             onClientRecieveEmitter: recieveMessageFromServerEmitter,
             onClientSend: sendMessageToServerEmitter.event,

@@ -20,7 +20,7 @@ import { createMessageConnection, SocketMessageReader, SocketMessageWriter } fro
 
 import { ApplicationIdProvider, BaseJsonrpcGLSPClient } from '@eclipse-glsp/protocol';
 import { isActionMessage } from 'sprotty-vscode-protocol';
-import { GlspServerAdapter } from '@eclipse-glsp/vscode-integration';
+import { GlspServerWrapper } from '@eclipse-glsp/vscode-integration';
 
 interface Options {
     readonly serverPort: number;
@@ -28,7 +28,7 @@ interface Options {
     readonly extensionPrefix: string;
 }
 
-export class WorkflowServerAdapter implements GlspServerAdapter, vscode.Disposable {
+export class WorkflowServerWrapper implements GlspServerWrapper, vscode.Disposable {
     readonly onServerRecieveEmitter = new vscode.EventEmitter<unknown>();
     readonly onServerSendEmitter = new vscode.EventEmitter<unknown>();
     readonly onServerSend: vscode.Event<unknown>;
