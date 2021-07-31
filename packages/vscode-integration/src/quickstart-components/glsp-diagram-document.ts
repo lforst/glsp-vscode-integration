@@ -15,9 +15,9 @@
  ********************************************************************************/
 
 import * as vscode from 'vscode';
-import { GlspDiagramDocument } from '@eclipse-glsp/vscode-integration';
+import { GlspDiagramDocument as IGlspDiagramDocument } from '../types';
 
-export default class WorkflowDocument implements GlspDiagramDocument {
+export class GlspDiagramDocument implements IGlspDiagramDocument {
     readonly onSaveDocumentEventEmitter = new vscode.EventEmitter<{ cancellation: vscode.CancellationToken }>();
     readonly onSaveDocumentAsEventEmitter = new vscode.EventEmitter<{ destination: vscode.Uri; cancellation: vscode.CancellationToken }>();
     readonly onRevertDocumentEventEmitter = new vscode.EventEmitter<{ cancellation: vscode.CancellationToken; diagramType: string }>();

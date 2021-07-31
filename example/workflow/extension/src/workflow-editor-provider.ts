@@ -16,15 +16,16 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import WorkflowDocument from './workflow-document';
-import { GlspVscodeAdapter } from '@eclipse-glsp/vscode-integration';
+
 import { isActionMessage, isWebviewReadyMessage } from 'sprotty-vscode-protocol';
+import { GlspVscodeAdapter } from '@eclipse-glsp/vscode-integration';
+import { GlspDiagramDocument } from '@eclipse-glsp/vscode-integration/lib/quickstart-components';
 
 const DIAGRAM_TYPE = 'workflow-diagram';
 
-export class WorkflowEditorProvider implements vscode.CustomEditorProvider<WorkflowDocument> {
-    private readonly onDidChangeCustomDocumentEventEmitter = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<WorkflowDocument>>();
-    onDidChangeCustomDocument: vscode.Event<vscode.CustomDocumentEditEvent<WorkflowDocument>>;
+export class WorkflowEditorProvider implements vscode.CustomEditorProvider<GlspDiagramDocument> {
+    private readonly onDidChangeCustomDocumentEventEmitter = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<GlspDiagramDocument>>();
+    onDidChangeCustomDocument: vscode.Event<vscode.CustomDocumentEditEvent<GlspDiagramDocument>>;
 
     // This is used to generate continuous and unique clientIds - consider replacing this with uuid4
     private viewCount = 0;
@@ -39,7 +40,7 @@ export class WorkflowEditorProvider implements vscode.CustomEditorProvider<Workf
         this.onDidChangeCustomDocument = this.onDidChangeCustomDocumentEventEmitter.event;
     }
 
-    saveCustomDocument(document: WorkflowDocument, cancellation: vscode.CancellationToken): Thenable<void> {
+    saveCustomDocument(document: GlspDiagramDocument, cancellation: vscode.CancellationToken): Thenable<void> {
         const savePromise = new Promise(resolve => {
             const saveListener = document.onDocumentSavedEventEmitter.event(() => {
                 resolve();
@@ -50,7 +51,7 @@ export class WorkflowEditorProvider implements vscode.CustomEditorProvider<Workf
         return savePromise;
     }
 
-    saveCustomDocumentAs(document: WorkflowDocument, destination: vscode.Uri, cancellation: vscode.CancellationToken): Thenable<void> {
+    saveCustomDocumentAs(document: GlspDiagramDocument, destination: vscode.Uri, cancellation: vscode.CancellationToken): Thenable<void> {
         const savePromise = new Promise(resolve => {
             const saveListener = document.onDocumentSavedEventEmitter.event(() => {
                 resolve();
@@ -61,12 +62,16 @@ export class WorkflowEditorProvider implements vscode.CustomEditorProvider<Workf
         return savePromise;
     }
 
-    revertCustomDocument(document: WorkflowDocument, cancellation: vscode.CancellationToken): Thenable<void> {
+    revertCustomDocument(document: GlspDiagramDocument, cancellation: vscode.CancellationToken): Thenable<void> {
         document.onRevertDocumentEventEmitter.fire({ cancellation, diagramType: DIAGRAM_TYPE });
         return Promise.resolve();
     }
 
-    backupCustomDocument(document: WorkflowDocument, context: vscode.CustomDocumentBackupContext, cancellation: vscode.CancellationToken): Thenable<vscode.CustomDocumentBackup> {
+    backupCustomDocument(
+        document: GlspDiagramDocument,
+        context: vscode.CustomDocumentBackupContext,
+        cancellation: vscode.CancellationToken
+    ): Thenable<vscode.CustomDocumentBackup> {
         document.onBackupDocumentEventEmitter.fire({ context, cancellation });
         return Promise.resolve({
             id: context.destination.toString(),
@@ -74,11 +79,11 @@ export class WorkflowEditorProvider implements vscode.CustomEditorProvider<Workf
         });
     }
 
-    openCustomDocument(uri: vscode.Uri, openContext: vscode.CustomDocumentOpenContext, token: vscode.CancellationToken): WorkflowDocument | Thenable<WorkflowDocument> {
-        return new WorkflowDocument(uri);
+    openCustomDocument(uri: vscode.Uri, openContext: vscode.CustomDocumentOpenContext, token: vscode.CancellationToken): GlspDiagramDocument | Thenable<GlspDiagramDocument> {
+        return new GlspDiagramDocument(uri);
     }
 
-    resolveCustomEditor(document: WorkflowDocument, webviewPanel: vscode.WebviewPanel, token: vscode.CancellationToken): void | Thenable<void> {
+    resolveCustomEditor(document: GlspDiagramDocument, webviewPanel: vscode.WebviewPanel, token: vscode.CancellationToken): void | Thenable<void> {
         const localResourceRootsUri = vscode.Uri.file(
             path.join(this.extensionContext.extensionPath, './pack')
         );
