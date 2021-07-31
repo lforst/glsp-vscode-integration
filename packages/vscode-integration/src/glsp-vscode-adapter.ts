@@ -96,10 +96,12 @@ export class GlspVscodeAdapter implements vscode.Disposable {
         this.onSelectionUpdate = this.selectionUpdateEmitter.event;
 
         const serverMessageListener = this.options.server.onServerSend(message => {
-            if (isActionMessage(message)) {
-                console.log(`Server (${message.clientId}): ${message.action.kind}`, message.action);
-            } else {
-                console.log('Server (no action message):', message);
+            if (this.options.logging) {
+                if (isActionMessage(message)) {
+                    console.log(`Server (${message.clientId}): ${message.action.kind}`, message.action);
+                } else {
+                    console.log('Server (no action message):', message);
+                }
             }
 
             this.options.onBeforeRecieveMessageFromServer(message, (newMessage, shouldBeProcessedByAdapter) => {
@@ -130,10 +132,12 @@ export class GlspVscodeAdapter implements vscode.Disposable {
         this.clientMap.set(client.clientId, client);
 
         const clientMessageListener = client.onClientSend(message => {
-            if (isActionMessage(message)) {
-                console.log(`Client (${message.clientId}): ${message.action.kind}`, message.action);
-            } else {
-                console.log('Client (no action message):', message);
+            if (this.options.logging) {
+                if (isActionMessage(message)) {
+                    console.log(`Client (${message.clientId}): ${message.action.kind}`, message.action);
+                } else {
+                    console.log('Client (no action message):', message);
+                }
             }
 
             this.options.onBeforeRecieveMessageFromClient(message, (newMessage, shouldBeProcessedByAdapter) => {
