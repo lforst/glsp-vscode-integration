@@ -19,7 +19,7 @@ import * as path from 'path';
 
 import { isActionMessage, isWebviewReadyMessage } from 'sprotty-vscode-protocol';
 import { GlspVscodeAdapter } from '@eclipse-glsp/vscode-integration';
-import { GlspDiagramDocument } from '@eclipse-glsp/vscode-integration/lib/quickstart-components';
+import { GlspDiagramDocument, WebviewPanelTracker } from '@eclipse-glsp/vscode-integration/lib/quickstart-components';
 
 const DIAGRAM_TYPE = 'workflow-diagram';
 
@@ -27,11 +27,17 @@ export class WorkflowEditorProvider implements vscode.CustomEditorProvider<GlspD
     private readonly onDidChangeCustomDocumentEventEmitter = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<GlspDiagramDocument>>();
     onDidChangeCustomDocument: vscode.Event<vscode.CustomDocumentEditEvent<GlspDiagramDocument>>;
 
+    private readonly webviewPanelTracker = new WebviewPanelTracker({
+        onNoWebviewActive: () => {
+            vscode.commands.executeCommand('setContext', 'workflow-editor-focused', false);
+        },
+        onWebviewActive: () => {
+            vscode.commands.executeCommand('setContext', 'workflow-editor-focused', true);
+        }
+    });
+
     // This is used to generate continuous and unique clientIds - consider replacing this with uuid4
     private viewCount = 0;
-
-    // This variable is used to keep track of which editor panel has reign over the 'workflow-editor-focused' status
-    private focusedEditorPanelClientId?: string = undefined;
 
     constructor(
         private readonly extensionContext: vscode.ExtensionContext,
@@ -160,26 +166,7 @@ export class WorkflowEditorProvider implements vscode.CustomEditorProvider<GlspD
         // Initialize diagram
         sendMessageToWebview(sprottyDiagramIdentifier);
 
-        // Set focused context on open
-        this.focusedEditorPanelClientId = sprottyDiagramIdentifier.clientId;
-        vscode.commands.executeCommand('setContext', 'workflow-editor-focused', true);
-
-        // Set focused context when panel is switched to
-        webviewPanel.onDidChangeViewState(e => {
-            if (e.webviewPanel.active) {
-                this.focusedEditorPanelClientId = sprottyDiagramIdentifier.clientId;
-            }
-
-            if (this.focusedEditorPanelClientId === sprottyDiagramIdentifier.clientId) {
-                vscode.commands.executeCommand('setContext', 'workflow-editor-focused', e.webviewPanel.active);
-            }
-        });
-
-        webviewPanel.onDidDispose(() => {
-            if (this.focusedEditorPanelClientId === sprottyDiagramIdentifier.clientId) {
-                vscode.commands.executeCommand('setContext', 'workflow-editor-focused', false);
-            }
-        });
+        this.webviewPanelTracker.registerPanel(webviewPanel);
 
         webviewPanel.webview.options = {
             localResourceRoots: [localResourceRootsUri],

@@ -15,3 +15,4 @@
  ********************************************************************************/
 
 export * from './glsp-diagram-document';
+export * from './webview-panel-tracker';
