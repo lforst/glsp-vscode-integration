@@ -19,7 +19,7 @@ import * as path from 'path';
 
 import { isActionMessage, isWebviewReadyMessage } from 'sprotty-vscode-protocol';
 import { GlspVscodeAdapter } from '@eclipse-glsp/vscode-integration';
-import { GlspDiagramDocument, WebviewPanelTracker } from '@eclipse-glsp/vscode-integration/lib/quickstart-components';
+import { GlspDiagramDocument, WebviewPanelFocusTracker } from '@eclipse-glsp/vscode-integration/lib/quickstart-components';
 
 const DIAGRAM_TYPE = 'workflow-diagram';
 
@@ -27,7 +27,7 @@ export class WorkflowEditorProvider implements vscode.CustomEditorProvider<GlspD
     private readonly onDidChangeCustomDocumentEventEmitter = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<GlspDiagramDocument>>();
     onDidChangeCustomDocument: vscode.Event<vscode.CustomDocumentEditEvent<GlspDiagramDocument>>;
 
-    private readonly webviewPanelTracker = new WebviewPanelTracker({
+    private readonly webviewPanelFocusTracker = new WebviewPanelFocusTracker({
         onNoWebviewActive: () => {
             vscode.commands.executeCommand('setContext', 'workflow-editor-focused', false);
         },
@@ -90,14 +90,6 @@ export class WorkflowEditorProvider implements vscode.CustomEditorProvider<GlspD
     }
 
     resolveCustomEditor(document: GlspDiagramDocument, webviewPanel: vscode.WebviewPanel, token: vscode.CancellationToken): void | Thenable<void> {
-        const localResourceRootsUri = vscode.Uri.file(
-            path.join(this.extensionContext.extensionPath, './pack')
-        );
-
-        const webviewScriptSourceUri = vscode.Uri.file(
-            path.join(this.extensionContext.extensionPath, './pack/webview.js')
-        );
-
         // This is used to initialize sprotty for our diagram
         const sprottyDiagramIdentifier = {
             diagramType: DIAGRAM_TYPE,
@@ -166,7 +158,15 @@ export class WorkflowEditorProvider implements vscode.CustomEditorProvider<GlspD
         // Initialize diagram
         sendMessageToWebview(sprottyDiagramIdentifier);
 
-        this.webviewPanelTracker.registerPanel(webviewPanel);
+        this.webviewPanelFocusTracker.registerPanel(webviewPanel);
+
+        const localResourceRootsUri = vscode.Uri.file(
+            path.join(this.extensionContext.extensionPath, './pack')
+        );
+
+        const webviewScriptSourceUri = vscode.Uri.file(
+            path.join(this.extensionContext.extensionPath, './pack/webview.js')
+        );
 
         webviewPanel.webview.options = {
             localResourceRoots: [localResourceRootsUri],

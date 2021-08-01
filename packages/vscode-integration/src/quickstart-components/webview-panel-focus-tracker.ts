@@ -16,16 +16,16 @@
 
 import * as vscode from 'vscode';
 
-interface WebviewPanelTrackerParams {
+interface WebviewPanelFocusTrackerParams {
     readonly onNoWebviewActive?: () => void;
     readonly onWebviewActive?: () => void;
 }
 
-export class WebviewPanelTracker {
-    private readonly params: Required<WebviewPanelTrackerParams>;
+export class WebviewPanelFocusTracker {
+    private readonly params: Required<WebviewPanelFocusTrackerParams>;
     private activeWebviewPanel?: vscode.WebviewPanel;
 
-    constructor(params: WebviewPanelTrackerParams) {
+    constructor(params: WebviewPanelFocusTrackerParams) {
         this.params = {
             onNoWebviewActive: () => undefined,
             onWebviewActive: () => undefined,
