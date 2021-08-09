@@ -40,7 +40,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     const workflowServerAdapter = new WorkflowServerWrapper({
         clientId: 'glsp.workflow',
-        extensionPrefix: 'workflow',
+        clientName: 'workflow',
         serverPort: JSON.parse(process.env.GLSP_SERVER_PORT || DEFAULT_SERVER_PORT)
     });
 
@@ -61,6 +61,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     context.subscriptions.push(workflowServerAdapter, glspVscodeAdapter, customEditorProvider);
     workflowServerAdapter.start();
 
+    // Keep track of selected elements
     let selectedElements: string[] = [];
 
     context.subscriptions.push(

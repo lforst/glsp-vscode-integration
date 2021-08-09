@@ -17,7 +17,6 @@
 import * as net from 'net';
 import * as vscode from 'vscode';
 import { createMessageConnection, SocketMessageReader, SocketMessageWriter } from 'vscode-jsonrpc';
-
 import { ApplicationIdProvider, BaseJsonrpcGLSPClient } from '@eclipse-glsp/protocol';
 import { isActionMessage } from 'sprotty-vscode-protocol';
 import { GlspServerWrapper } from '@eclipse-glsp/vscode-integration';
@@ -25,7 +24,7 @@ import { GlspServerWrapper } from '@eclipse-glsp/vscode-integration';
 interface Options {
     readonly serverPort: number;
     readonly clientId: string;
-    readonly extensionPrefix: string;
+    readonly clientName: string;
 }
 
 export class WorkflowServerWrapper implements GlspServerWrapper, vscode.Disposable {
@@ -52,7 +51,7 @@ export class WorkflowServerWrapper implements GlspServerWrapper, vscode.Disposab
 
         this.glspClient = new BaseJsonrpcGLSPClient({
             id: options.clientId,
-            name: options.extensionPrefix,
+            name: options.clientName,
             connectionProvider: connection
         });
 
