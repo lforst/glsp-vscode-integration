@@ -31,11 +31,11 @@ import {
     ExportSvgAction
 } from './actions';
 
-import { GlspVscodeAdapterConfiguration, GlspClientWrapper } from './types';
+import { GlspVscodeAdapterConfiguration, GlspVscodeClient } from './types';
 
 export class GlspVscodeAdapter implements vscode.Disposable {
     private readonly options: Required<GlspVscodeAdapterConfiguration>;
-    private readonly clientMap = new Map<string, GlspClientWrapper>();
+    private readonly clientMap = new Map<string, GlspVscodeClient>();
     private readonly clientSelectionMap = new Map<string, string[]>();
     private readonly diagnostics = vscode.languages.createDiagnosticCollection();
     private readonly selectionUpdateEmitter = new vscode.EventEmitter<string[]>();
@@ -93,7 +93,7 @@ export class GlspVscodeAdapter implements vscode.Disposable {
         );
     }
 
-    registerClient(client: GlspClientWrapper): void {
+    registerClient(client: GlspVscodeClient): void {
         this.clientMap.set(client.clientId, client);
 
         const clientMessageListener = client.onClientSend(message => {
@@ -184,7 +184,8 @@ export class GlspVscodeAdapter implements vscode.Disposable {
     }
 
     private processMessage(
-        message: unknown, origin: 'client' | 'server',
+        message: unknown,
+        origin: 'client' | 'server',
         callback: (newMessage: unknown, messageChanged: boolean) => void
     ): void {
         if (isActionMessage(message)) {

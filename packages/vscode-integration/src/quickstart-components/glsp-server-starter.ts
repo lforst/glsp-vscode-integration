@@ -20,7 +20,7 @@ import * as vscode from 'vscode';
 
 const START_UP_COMPLETE_MSG = '[GLSP-Server]:Startup completed';
 
-export interface JavaSocketServerLaunchOptions {
+interface JavaSocketServerLaunchOptions {
     /** Path to the location of the jar file that should be launched as process */
     readonly jarPath: string;
     /** Port on which the server should listen for new client connections */
@@ -31,7 +31,7 @@ export interface JavaSocketServerLaunchOptions {
     readonly additionalArgs?: string[];
 }
 
-export class WorkflowServer implements vscode.Disposable {
+export class GlspServerStarter implements vscode.Disposable {
     private readonly options: Required<JavaSocketServerLaunchOptions>;
     private serverProcess?: childProcess.ChildProcess;
 
@@ -52,7 +52,11 @@ export class WorkflowServer implements vscode.Disposable {
                 throw Error(`Could not launch GLSP server. The given jar path is not valid: ${jarPath}`);
             }
 
-            const args = ['-jar', this.options.jarPath, '--port', `${this.options.serverPort}`, ...this.options.additionalArgs];
+            const args = [
+                '-jar', this.options.jarPath,
+                '--port', `${this.options.serverPort}`,
+                ...this.options.additionalArgs
+            ];
 
             const process = childProcess.spawn('java', args);
             this.serverProcess = process;
@@ -78,18 +82,14 @@ export class WorkflowServer implements vscode.Disposable {
                     console.error('GLSP-Server:', error);
                 }
 
-                if (error.message.includes('ENOENT')) {
-                    throw new Error('Failed to spawn java\nPerhaps it is not on the PATH.');
-                } else {
-                    throw error;
-                }
+                throw error;
             });
         });
     }
 
     stop(): void {
         if (this.serverProcess && !this.serverProcess.killed) {
-            this.serverProcess.kill();
+            this.serverProcess.kill('SIGINT');
         }
     }
 

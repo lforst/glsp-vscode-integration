@@ -24,7 +24,7 @@ export interface GlspDiagramDocument extends vscode.CustomDocument {
     readonly onDocumentSavedEventEmitter: vscode.EventEmitter<void>;
 }
 
-export interface GlspClientWrapper {
+export interface GlspVscodeClient {
     readonly clientId: string;
     readonly webviewPanel: vscode.WebviewPanel;
     readonly document: GlspDiagramDocument;
@@ -33,13 +33,13 @@ export interface GlspClientWrapper {
     readonly onClientSend: vscode.Event<unknown>;
 }
 
-export interface GlspServerWrapper {
+export interface GlspVscodeServer {
     readonly onServerReceiveEmitter: vscode.EventEmitter<unknown>;
     readonly onServerSend: vscode.Event<unknown>;
 }
 
 export interface GlspVscodeAdapterConfiguration {
-    server: GlspServerWrapper;
+    server: GlspVscodeServer;
     logging?: boolean;
     onBeforeReceiveMessageFromClient?: (
         message: unknown,

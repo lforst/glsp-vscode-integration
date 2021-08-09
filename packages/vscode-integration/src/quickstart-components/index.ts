@@ -15,4 +15,6 @@
  ********************************************************************************/
 
 export * from './glsp-diagram-document';
+export * from './glsp-server-adapter';
+export * from './glsp-server-starter';
 export * from './webview-panel-focus-tracker';

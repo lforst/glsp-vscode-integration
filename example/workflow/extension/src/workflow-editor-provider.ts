@@ -18,12 +18,13 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 
 import { isActionMessage, isWebviewReadyMessage } from 'sprotty-vscode-protocol';
+
 import { GlspVscodeAdapter } from '@eclipse-glsp/vscode-integration';
 import { GlspDiagramDocument, WebviewPanelFocusTracker } from '@eclipse-glsp/vscode-integration/lib/quickstart-components';
 
 const DIAGRAM_TYPE = 'workflow-diagram';
 
-export class WorkflowEditorProvider implements vscode.CustomEditorProvider<GlspDiagramDocument> {
+export default class WorkflowEditorProvider implements vscode.CustomEditorProvider<GlspDiagramDocument> {
     private readonly onDidChangeCustomDocumentEventEmitter = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<GlspDiagramDocument>>();
     onDidChangeCustomDocument: vscode.Event<vscode.CustomDocumentEditEvent<GlspDiagramDocument>>;
 
