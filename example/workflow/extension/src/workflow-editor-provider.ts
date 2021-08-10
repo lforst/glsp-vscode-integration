@@ -37,7 +37,7 @@ export default class WorkflowEditorProvider implements vscode.CustomEditorProvid
         }
     });
 
-    // This is used to generate continuous and unique clientIds - consider replacing this with uuid4
+    /** Used to generate continuous and unique clientIds - TODO: consider replacing this with uuid. */
     private viewCount = 0;
 
     constructor(

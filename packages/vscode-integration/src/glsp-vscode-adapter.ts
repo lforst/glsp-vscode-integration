@@ -28,20 +28,38 @@ import {
     SetMarkersAction,
     NavigateToExternalTargetAction,
     SelectAction,
-    ExportSvgAction
+    ExportSvgAction,
+    Action
 } from './actions';
 
 import { GlspVscodeAdapterConfiguration, GlspVscodeClient } from './types';
 
+/**
+ * The `GlspVscodeAdapter` acts as the bridge between GLSP-Clients and the GLSP-Server
+ * and is at the core of the Glsp-VSCode integration.
+ *
+ * It works by providing a server to the adapter that implements the `GlspVscodeServer`
+ * interface and registering clients using the `GlspVscodeAdapter.registerClient`
+ * function. Messages sent between the clients and the server are then intercepted
+ * by the adapter to provide functionality based on the content of the messages.
+ *
+ * Messages can be intercepted using the interceptor properties in the options
+ * argument.
+ *
+ * Selection updates can be listened to using the `onSelectionUpdate` property.
+ */
 export class GlspVscodeAdapter implements vscode.Disposable {
-    private readonly options: Required<GlspVscodeAdapterConfiguration>;
+    public onSelectionUpdate: vscode.Event<string[]>;
+
+    /** Maps clientId to corresponding GlspVscodeClient. */
     private readonly clientMap = new Map<string, GlspVscodeClient>();
+    /** Maps clientId to selected elementIDs for that client. */
     private readonly clientSelectionMap = new Map<string, string[]>();
+
+    private readonly options: Required<GlspVscodeAdapterConfiguration>;
     private readonly diagnostics = vscode.languages.createDiagnosticCollection();
     private readonly selectionUpdateEmitter = new vscode.EventEmitter<string[]>();
     private readonly disposables: vscode.Disposable[] = [];
-
-    onSelectionUpdate: vscode.Event<string[]>;
 
     constructor(options: GlspVscodeAdapterConfiguration) {
         // Create default options
@@ -60,6 +78,7 @@ export class GlspVscodeAdapter implements vscode.Disposable {
 
         this.onSelectionUpdate = this.selectionUpdateEmitter.event;
 
+        // Set up message listener for server
         const serverMessageListener = this.options.server.onServerSend(message => {
             if (this.options.logging) {
                 if (isActionMessage(message)) {
@@ -69,15 +88,18 @@ export class GlspVscodeAdapter implements vscode.Disposable {
                 }
             }
 
+            // Run message through first user-provided interceptor (pre-receive)
             this.options.onBeforeReceiveMessageFromServer(message, (newMessage, shouldBeProcessedByAdapter) => {
                 if (shouldBeProcessedByAdapter) {
                     this.processMessage(newMessage, 'server', (processedMessage, messageChanged) => {
+                        // Run message through second user-provided interceptor (pre-send) - processed
                         const filteredMessage = this.options.onBeforePropagateMessageToClient(newMessage, processedMessage, messageChanged);
                         if (typeof filteredMessage !== 'undefined' && isActionMessage(filteredMessage)) {
                             this.sendMessageToClient(filteredMessage.clientId, filteredMessage);
                         }
                     });
                 } else {
+                    // Run message through second user-provided interceptor (pre-send) - unprocessed
                     const filteredMessage = this.options.onBeforePropagateMessageToClient(newMessage, newMessage, false);
                     if (typeof filteredMessage !== 'undefined' && isActionMessage(filteredMessage)) {
                         this.sendMessageToClient(filteredMessage.clientId, filteredMessage);
@@ -93,9 +115,17 @@ export class GlspVscodeAdapter implements vscode.Disposable {
         );
     }
 
-    registerClient(client: GlspVscodeClient): void {
+    /**
+     * Register a client on the GLSP-VSCode adapter. All communication will subsequently
+     * run through the VSCode integration. Clients do not need to be unregistered
+     * as they are automatically disposed of when the panel they belong to is closed.
+     *
+     * @param client The client to register.
+     */
+    public registerClient(client: GlspVscodeClient): void {
         this.clientMap.set(client.clientId, client);
 
+        // Set up message listener for client
         const clientMessageListener = client.onClientSend(message => {
             if (this.options.logging) {
                 if (isActionMessage(message)) {
@@ -105,15 +135,18 @@ export class GlspVscodeAdapter implements vscode.Disposable {
                 }
             }
 
+            // Run message through first user-provided interceptor (pre-receive)
             this.options.onBeforeReceiveMessageFromClient(message, (newMessage, shouldBeProcessedByAdapter) => {
                 if (shouldBeProcessedByAdapter) {
                     this.processMessage(newMessage, 'client', (processedMessage, messageChanged) => {
+                        // Run message through second user-provided interceptor (pre-send) - processed
                         const filteredMessage = this.options.onBeforePropagateMessageToServer(newMessage, processedMessage, messageChanged);
                         if (typeof filteredMessage !== 'undefined') {
                             this.options.server.onServerReceiveEmitter.fire(filteredMessage);
                         }
                     });
                 } else {
+                    // Run message through second user-provided interceptor (pre-send) - unprocessed
                     const filteredMessage = this.options.onBeforePropagateMessageToServer(newMessage, newMessage, false);
                     if (typeof filteredMessage !== 'undefined') {
                         this.options.server.onServerReceiveEmitter.fire(filteredMessage);
@@ -143,6 +176,7 @@ export class GlspVscodeAdapter implements vscode.Disposable {
             }));
         });
 
+        // Cleanup when client panel is closed
         const panelOnDisposeListener = client.webviewPanel.onDidDispose(() => {
             this.diagnostics.set(client.document.uri, undefined); // this clears the diagnostics for the file
             this.clientMap.delete(client.clientId);
@@ -156,7 +190,13 @@ export class GlspVscodeAdapter implements vscode.Disposable {
         });
     }
 
-    sendActionToActiveClient(action: unknown): void {
+    /**
+     * Send an action to the client/panel that is currently focused. If no registered
+     * panel is focused, the message will not be sent.
+     *
+     * @param action The action to send to the active client.
+     */
+    public sendActionToActiveClient(action: Action): void {
         this.clientMap.forEach(client => {
             if (client.webviewPanel.active) {
                 client.onClientReceiveEmitter.fire({
@@ -168,6 +208,12 @@ export class GlspVscodeAdapter implements vscode.Disposable {
         });
     }
 
+    /**
+     * Send message to registered client by id.
+     *
+     * @param clientId Id of client.
+     * @param message Message to send.
+     */
     private sendMessageToClient(clientId: string, message: unknown): void {
         const client = this.clientMap.get(clientId);
         if (client) {
@@ -175,7 +221,13 @@ export class GlspVscodeAdapter implements vscode.Disposable {
         }
     }
 
-    private sendActionToClient(clientId: string, action: unknown): void {
+    /**
+     * Send action to registered client by id.
+     *
+     * @param clientId Id of client.
+     * @param action Action to send.
+     */
+    private sendActionToClient(clientId: string, action: Action): void {
         this.sendMessageToClient(clientId, {
             clientId: clientId,
             action: action,
@@ -183,10 +235,32 @@ export class GlspVscodeAdapter implements vscode.Disposable {
         });
     }
 
+    /**
+     * Provides the functionality of the VSCode integration.
+     *
+     * Incoming messages (unless intercepted) will run through this function and
+     * be acted upon by providing default functionality for VSCode.
+     *
+     * @param message The original received message.
+     * @param origin The origin of the received message.
+     * @param callback A callback containing the message to be propagated, alongside
+     * a flag indicating whether the propagated message differs from the original
+     * message.
+     */
     private processMessage(
         message: unknown,
         origin: 'client' | 'server',
-        callback: (newMessage: unknown, messageChanged: boolean) => void
+        callback: (
+            /**
+             * The message to propagate. `undefined` here will stop propagation.
+             */
+            newMessage: unknown,
+            /**
+             * Wether the original message was modified before being passed into
+             * `newMessage`.
+             */
+            messageChanged: boolean
+        ) => void
     ): void {
         if (isActionMessage(message)) {
             const client = this.clientMap.get(message.clientId);
@@ -257,7 +331,7 @@ export class GlspVscodeAdapter implements vscode.Disposable {
                 this.selectionUpdateEmitter.fire(action.selectedElementsIDs);
 
                 if (origin === 'client') {
-                    // Do not propagate action if it comes from client in order to avoid an infinite loop as both, client and server will mirror this action
+                    // Do not propagate action if it comes from client in order to avoid an infinite loop as both, client and server will mirror the Selection action
                     return callback(undefined, true);
                 }
             }
@@ -281,7 +355,7 @@ export class GlspVscodeAdapter implements vscode.Disposable {
                     console.error
                 );
 
-                // Do not propagate action if it comes from client in order to avoid an infinite loop as both, client and server will mirror this action
+                // Do not propagate action if it comes from client in order to avoid an infinite loop as both, client and server will mirror the Export SVG action
                 return callback(undefined, true);
             }
         }
@@ -289,7 +363,7 @@ export class GlspVscodeAdapter implements vscode.Disposable {
         return callback(message, false);
     }
 
-    dispose(): void {
+    public dispose(): void {
         this.disposables.forEach(disposable => disposable.dispose());
     }
 }
