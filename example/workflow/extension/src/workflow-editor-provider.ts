@@ -20,22 +20,13 @@ import * as path from 'path';
 import { isActionMessage, isWebviewReadyMessage } from 'sprotty-vscode-protocol';
 
 import { GlspVscodeAdapter } from '@eclipse-glsp/vscode-integration';
-import { GlspDiagramDocument, WebviewPanelFocusTracker } from '@eclipse-glsp/vscode-integration/lib/quickstart-components';
+import { GlspDiagramDocument } from '@eclipse-glsp/vscode-integration/lib/quickstart-components';
 
 const DIAGRAM_TYPE = 'workflow-diagram';
 
 export default class WorkflowEditorProvider implements vscode.CustomEditorProvider<GlspDiagramDocument> {
     private readonly onDidChangeCustomDocumentEventEmitter = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<GlspDiagramDocument>>();
     onDidChangeCustomDocument: vscode.Event<vscode.CustomDocumentEditEvent<GlspDiagramDocument>>;
-
-    private readonly webviewPanelFocusTracker = new WebviewPanelFocusTracker({
-        onNoWebviewActive: () => {
-            vscode.commands.executeCommand('setContext', 'workflow-editor-focused', false);
-        },
-        onWebviewActive: () => {
-            vscode.commands.executeCommand('setContext', 'workflow-editor-focused', true);
-        }
-    });
 
     /** Used to generate continuous and unique clientIds - TODO: consider replacing this with uuid. */
     private viewCount = 0;
@@ -158,8 +149,6 @@ export default class WorkflowEditorProvider implements vscode.CustomEditorProvid
 
         // Initialize diagram
         sendMessageToWebview(sprottyDiagramIdentifier);
-
-        this.webviewPanelFocusTracker.registerPanel(webviewPanel);
 
         const localResourceRootsUri = vscode.Uri.file(
             path.join(this.extensionContext.extensionPath, './pack')
