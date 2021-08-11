@@ -24,8 +24,7 @@ import {
     LayoutOperation,
     FitToScreenAction,
     CenterAction,
-    RequestExportSvgAction,
-    wrapCustomEditorProvider
+    RequestExportSvgAction
 } from '@eclipse-glsp/vscode-integration';
 
 import {
@@ -38,6 +37,7 @@ import WorkflowEditorProvider from './workflow-editor-provider';
 const DEFAULT_SERVER_PORT = '5007';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+    // Start server process using quickstart component
     if (process.env.GLSP_SERVER_DEBUG !== 'true') {
         const workflowServer = new GlspServerStarter({
             jarPath: path.join(__dirname, '../server/org.eclipse.glsp.example.workflow-0.9.0-SNAPSHOT-glsp.jar'),
@@ -49,12 +49,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await workflowServer.start();
     }
 
+    // Wrap server with quickstart component
     const workflowServerAdapter = new GlspServerAdapter({
         clientId: 'glsp.workflow',
         clientName: 'workflow',
         serverPort: JSON.parse(process.env.GLSP_SERVER_PORT || DEFAULT_SERVER_PORT)
     });
 
+    // Initialize GLSP-VSCode adapter with server wrapper
     const glspVscodeAdapter = new GlspVscodeAdapter({
         server: workflowServerAdapter,
         logging: true
@@ -62,7 +64,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     const customEditorProvider = vscode.window.registerCustomEditorProvider(
         'workflow.glspDiagram',
-        wrapCustomEditorProvider(new WorkflowEditorProvider(context, glspVscodeAdapter)),
+        new WorkflowEditorProvider(context, glspVscodeAdapter),
         {
             webviewOptions: { retainContextWhenHidden: true },
             supportsMultipleEditorsPerDocument: false
@@ -74,7 +76,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     // Keep track of selected elements
     let selectedElements: string[] = [];
+    context.subscriptions.push(
+        glspVscodeAdapter.onSelectionUpdate(n => {
+            selectedElements = n;
+            vscode.commands.executeCommand('setContext', 'workflow.editorSelectedElementsAmount', n.length);
+        })
+    );
 
+    // Register various commands
     context.subscriptions.push(
         vscode.commands.registerCommand('workflow.fit', () => {
             glspVscodeAdapter.sendActionToActiveClient(new FitToScreenAction(selectedElements));
@@ -96,10 +105,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }),
         vscode.commands.registerCommand('workflow.exportAsSVG', () => {
             glspVscodeAdapter.sendActionToActiveClient(new RequestExportSvgAction());
-        }),
-        glspVscodeAdapter.onSelectionUpdate(n => {
-            selectedElements = n;
-            vscode.commands.executeCommand('setContext', 'workflow.editorSelectedElementsAmount', n.length);
         })
     );
 }

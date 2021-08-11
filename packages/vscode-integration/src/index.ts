@@ -15,6 +15,5 @@
  ********************************************************************************/
 
 export * from './actions';
-export * from './glsp-editor-provider-wrapper';
 export * from './glsp-vscode-adapter';
 export * from './types';

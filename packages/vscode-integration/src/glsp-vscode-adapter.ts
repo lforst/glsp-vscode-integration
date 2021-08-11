@@ -71,8 +71,9 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
     public onSelectionUpdate: vscode.Event<string[]>;
 
     /**
-     * A subscribable event which fires with an array containing the IDs of all
-     * selected elements when the selection of the editor changes.
+     * A subscribable event which fires when a document changed. The event body
+     * will contain that document. Use this event for the onDidChangeCustomDocument
+     * on your implementation of the `CustomEditorProvider`.
      */
     public onDidChangeCustomDocument: vscode.Event<vscode.CustomDocumentEditEvent<D>>;
 

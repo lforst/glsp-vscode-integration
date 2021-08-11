@@ -18,29 +18,56 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 
 import { isActionMessage, isWebviewReadyMessage } from 'sprotty-vscode-protocol';
-
 import { GlspVscodeAdapter } from '@eclipse-glsp/vscode-integration';
-import { GlspEditorProvider } from '@eclipse-glsp/vscode-integration/lib/quickstart-components';
 
-export default class WorkflowEditorProvider extends GlspEditorProvider {
-    diagramType = 'workflow-diagram';
+const DIAGRAM_TYPE = 'workflow-diagram';
+
+export default class WorkflowEditorProvider implements vscode.CustomEditorProvider {
 
     /** Used to generate continuous and unique clientIds - TODO: consider replacing this with uuid. */
     private viewCount = 0;
 
+    onDidChangeCustomDocument: vscode.Event<vscode.CustomDocumentContentChangeEvent<vscode.CustomDocument>>;
+
     constructor(
         private readonly extensionContext: vscode.ExtensionContext,
-        readonly glspVscodeAdapter: GlspVscodeAdapter
+        private readonly glspVscodeAdapter: GlspVscodeAdapter
     ) {
-        super();
+        this.onDidChangeCustomDocument = glspVscodeAdapter.onDidChangeCustomDocument;
+    }
+
+    saveCustomDocument(document: vscode.CustomDocument, cancellation: vscode.CancellationToken): Thenable<void> {
+        return this.glspVscodeAdapter.saveDocument(document);
+    }
+
+    saveCustomDocumentAs(document: vscode.CustomDocument, destination: vscode.Uri, cancellation: vscode.CancellationToken): Thenable<void> {
+        return this.glspVscodeAdapter.saveDocument(document, destination);
+    }
+
+    revertCustomDocument(document: vscode.CustomDocument, cancellation: vscode.CancellationToken): Thenable<void> {
+        return this.glspVscodeAdapter.revertDocument(document, DIAGRAM_TYPE);
+    }
+
+    backupCustomDocument(
+        document: vscode.CustomDocument,
+        context: vscode.CustomDocumentBackupContext,
+        cancellation: vscode.CancellationToken
+    ): Thenable<vscode.CustomDocumentBackup> {
+        // Basically do the bare minimum - which is nothing
+        return Promise.resolve({ id: context.destination.toString(), delete: () => undefined });
+    }
+
+    openCustomDocument(uri: vscode.Uri, openContext: vscode.CustomDocumentOpenContext, token: vscode.CancellationToken): vscode.CustomDocument | Thenable<vscode.CustomDocument> {
+        // Return the most basic implementation possible.
+        return { uri, dispose: () => undefined };
     }
 
     resolveCustomEditor(document: vscode.CustomDocument, webviewPanel: vscode.WebviewPanel, token: vscode.CancellationToken): void | Thenable<void> {
         // This is used to initialize sprotty for our diagram
         const sprottyDiagramIdentifier = {
-            diagramType: this.diagramType,
+            diagramType: DIAGRAM_TYPE,
             uri: serializeUri(document.uri),
-            clientId: `${this.diagramType}_${this.viewCount++}`
+            clientId: `${DIAGRAM_TYPE}_${this.viewCount++}`
         };
 
         // Promise that resolves when sprotty sends its ready-message
@@ -94,10 +121,10 @@ export default class WorkflowEditorProvider extends GlspEditorProvider {
         // Register document/diagram panel/model in vscode adapter
         this.glspVscodeAdapter.registerClient({
             clientId: sprottyDiagramIdentifier.clientId,
-            onClientReceiveEmitter: receiveMessageFromServerEmitter,
-            onClientSend: sendMessageToServerEmitter.event,
+            document: document,
             webviewPanel: webviewPanel,
-            document: document
+            onClientSend: sendMessageToServerEmitter.event,
+            onClientReceiveEmitter: receiveMessageFromServerEmitter
         });
 
         // Initialize diagram

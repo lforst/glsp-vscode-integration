@@ -18,13 +18,16 @@ import * as net from 'net';
 import * as vscode from 'vscode';
 import { createMessageConnection, SocketMessageReader, SocketMessageWriter } from 'vscode-jsonrpc';
 import { ApplicationIdProvider, BaseJsonrpcGLSPClient } from '@eclipse-glsp/protocol';
-import { isActionMessage } from 'sprotty-vscode-protocol';
+import { isActionMessage } from '../actions';
 
 import { GlspVscodeServer } from '../types';
 
 interface Options {
+    /** Port of the running server. */
     readonly serverPort: number;
+    /** Client ID to register the jsonRPC client with on the server. */
     readonly clientId: string;
+    /** Name to register the client with on the server. */
     readonly clientName: string;
 }
 
