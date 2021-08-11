@@ -31,6 +31,17 @@ interface JavaSocketServerLaunchOptions {
     readonly additionalArgs?: string[];
 }
 
+/**
+ * This component can be used to bootstrap your extension when using the default
+ * GLSP server implementation, which you can find here:
+ * https://github.com/eclipse-glsp/glsp-server
+ *
+ * It simply starts up a server JAR located at a specified path on a specified port.
+ * You can pass additional launch arguments through the options.
+ *
+ * If you need a component to quickly connect your default GLSP server to the GLSP-VSCode
+ * integration, take a look at the `GlspServerAdapter` quickstart component.
+ */
 export class GlspServerStarter implements vscode.Disposable {
     private readonly options: Required<JavaSocketServerLaunchOptions>;
     private serverProcess?: childProcess.ChildProcess;
@@ -44,6 +55,9 @@ export class GlspServerStarter implements vscode.Disposable {
         };
     }
 
+    /**
+     * Starts up the server.
+     */
     async start(): Promise<void> {
         return new Promise(resolve => {
             const jarPath = this.options.jarPath;
@@ -87,9 +101,13 @@ export class GlspServerStarter implements vscode.Disposable {
         });
     }
 
+    /**
+     * Stops the server.
+     */
     stop(): void {
         if (this.serverProcess && !this.serverProcess.killed) {
             this.serverProcess.kill('SIGINT');
+            // TODO: Think of a process that does this elegantly with the same consistency.
         }
     }
 

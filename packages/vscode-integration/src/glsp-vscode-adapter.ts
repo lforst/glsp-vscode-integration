@@ -252,14 +252,9 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
         message: unknown,
         origin: 'client' | 'server',
         callback: (
-            /**
-             * The message to propagate. `undefined` here will stop propagation.
-             */
+            /** The message to propagate. `undefined` here will stop propagation. */
             newMessage: unknown,
-            /**
-             * Wether the original message was modified before being passed into
-             * `newMessage`.
-             */
+            /** Wether the original message was modified before being passed into `newMessage`. */
             messageChanged: boolean
         ) => void
     ): void {
@@ -364,6 +359,15 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
         return callback(message, false);
     }
 
+    /**
+     * Saves a document. Make sure to call this function in the `saveCustomDocument`
+     * and `saveCustomDocumentAs` functions of your `CustomEditorProvider` implementation.
+     *
+     * @param document The document to save.
+     * @param destination Optional parameter. When this parameter is provided the
+     * file will instead be saved at this location.
+     * @returns A promise that resolves when the file has been successfully saved.
+     */
     public async saveDocument(document: D, destination?: vscode.Uri): Promise<void> {
         const clientId = this.documentMap.get(document);
         if (clientId) {
@@ -384,6 +388,10 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
         }
     }
 
+    /**
+     * Reverts a document. Make sure to call this function in the `revertCustomDocument`
+     * functions of your `CustomEditorProvider` implementation.
+     */
     public async revertDocument(document: D, diagramType: string): Promise<void> {
         const clientId = this.documentMap.get(document);
         if (clientId) {

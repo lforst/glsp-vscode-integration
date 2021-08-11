@@ -31,15 +31,28 @@ interface Options {
     readonly clientName: string;
 }
 
+/**
+ * This component can be used to bootstrap your extension when using the default
+ * GLSP server implementation, which you can find here:
+ * https://github.com/eclipse-glsp/glsp-server
+ *
+ * It sets up a JSON-RPC connection to a server running on a specified port and
+ * provides an interface, ready to be used by the `GlspVscodeAdapter` for the
+ * GLSP-VSCode integration.
+ *
+ * If you need a component to quickly start your default GLSP server, take a look
+ * at the `GlspServerStarter` quickstart component.
+ */
 export class GlspServerAdapter implements GlspVscodeServer, vscode.Disposable {
     readonly onServerReceiveEmitter = new vscode.EventEmitter<unknown>();
-    readonly onServerSendEmitter = new vscode.EventEmitter<unknown>();
     readonly onServerSend: vscode.Event<unknown>;
 
-    private socket = new net.Socket();
-    private glspClient: BaseJsonrpcGLSPClient;
+    private readonly onServerSendEmitter = new vscode.EventEmitter<unknown>();
 
-    private onReady: Promise<void>;
+    private readonly socket = new net.Socket();
+    private readonly glspClient: BaseJsonrpcGLSPClient;
+
+    private readonly onReady: Promise<void>;
     private setReady: () => void;
 
     constructor(private readonly options: Options) {
@@ -68,14 +81,17 @@ export class GlspServerAdapter implements GlspVscodeServer, vscode.Disposable {
         });
     }
 
+    /**
+     * Starts up the JSON-RPC client and connects it to a running server.
+     */
     async start(): Promise<void> {
         this.socket.connect(this.options.serverPort);
 
         await this.glspClient.start();
         await this.glspClient.initializeServer({ applicationId: ApplicationIdProvider.get() });
 
-        // The listener cant be registered before `glspClient.start()` because the glspClient will reject the listener
-        // if it has not connected to the server yet.
+        // The listener cant be registered before `glspClient.start()` because the
+        // glspClient will reject the listener if it has not connected to the server yet.
         this.glspClient.onActionMessage(message => {
             this.onServerSendEmitter.fire(message);
         });
@@ -83,6 +99,9 @@ export class GlspServerAdapter implements GlspVscodeServer, vscode.Disposable {
         this.setReady();
     }
 
+    /**
+     * Stops the client. It cannot be restarted.
+     */
     async stop(): Promise<void> {
         return this.glspClient.stop();
     }
