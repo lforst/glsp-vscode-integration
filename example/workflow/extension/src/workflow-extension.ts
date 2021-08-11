@@ -24,7 +24,8 @@ import {
     LayoutOperation,
     FitToScreenAction,
     CenterAction,
-    RequestExportSvgAction
+    RequestExportSvgAction,
+    wrapCustomEditorProvider
 } from '@eclipse-glsp/vscode-integration';
 
 import {
@@ -61,7 +62,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     const customEditorProvider = vscode.window.registerCustomEditorProvider(
         'workflow.glspDiagram',
-        new WorkflowEditorProvider(context, glspVscodeAdapter),
+        wrapCustomEditorProvider(new WorkflowEditorProvider(context, glspVscodeAdapter)),
         {
             webviewOptions: { retainContextWhenHidden: true },
             supportsMultipleEditorsPerDocument: false
@@ -98,7 +99,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }),
         glspVscodeAdapter.onSelectionUpdate(n => {
             selectedElements = n;
-            vscode.commands.executeCommand('setContext', 'workflow-editor-selected-elements-amount', n.length);
+            vscode.commands.executeCommand('setContext', 'workflow.editorSelectedElementsAmount', n.length);
         })
     );
 }

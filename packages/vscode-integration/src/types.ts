@@ -17,80 +17,10 @@
 import * as vscode from 'vscode';
 
 /**
- * Documents are used as a carrier of state between events (save, backup or revert
- * events and so on). The VSCode integration requires CustomDocuments that are used
- * by the CustomEditorProvider to implement the following interface in order to listen
- * for such events and handle them accordingly in the background.
- *
- * An extendable default implementation is provided under '@eclipse-glsp/vscode-integration/lib/quickstart-components'.
- */
-export interface GlspDiagramDocument extends vscode.CustomDocument {
-
-    /**
-     * This event should be fired when the CustomEditorProvider.saveCustomDocument()
-     * function is called.
-     * The arguments from that function should be passed in the event.
-     *
-     * The VSCode integration will use this event to save the file behind the document.
-     */
-    readonly onSaveDocumentEvent: vscode.Event<{
-        cancellation: vscode.CancellationToken;
-    }>;
-
-    /**
-     * This event should be fired when the CustomEditorProvider.saveCustomDocumentAs()
-     * function is called.
-     * The arguments from that function should be passed in the event.
-     *
-     * The VSCode integration will use this event to trigger a 'Save as...' on the
-     * file behind the document.
-     */
-    readonly onSaveDocumentAsEvent: vscode.Event<{
-        destination: vscode.Uri;
-        cancellation: vscode.CancellationToken;
-    }>;
-
-    /**
-     * This event should be fired when the CustomEditorProvider.revertCustomDocument()
-     * function is called.
-     * The arguments from that function should be passed in the event.
-     *
-     * The VSCode integration will use this event to revert the file behind the
-     * document.
-     */
-    readonly onRevertDocumentEvent: vscode.Event<{
-        cancellation: vscode.CancellationToken;
-        diagramType: string;
-    }>;
-
-    /**
-     * This event should be fired when the CustomEditorProvider.backupCustomDocument()
-     * function is called.
-     * The arguments from that function should be passed in the event.
-     *
-     * The VSCode integration currently will not do anything with this event but
-     * it is recommended to implement this event for future features.
-     */
-    readonly onBackupDocumentEvent: vscode.Event<{
-        context: vscode.CustomDocumentBackupContext;
-        cancellation: vscode.CancellationToken;
-    }>;
-
-    /**
-     * The VSCode integration will use this event emitter to notify the extension
-     * when a save action (like from `save` and `save as...`) has completed.
-     *
-     * You can use this event to resolve the promises returned by`CustomEditorProvider.saveCustomDocument()`
-     * or `CustomEditorProvider.saveCustomDocumentAs()`.
-     */
-    readonly onDocumentSavedEventEmitter: vscode.EventEmitter<void>;
-}
-
-/**
  * Any clients registered on the GLSP VSCode integration need to implement this
  * interface.
  */
-export interface GlspVscodeClient {
+export interface GlspVscodeClient<D extends vscode.CustomDocument = vscode.CustomDocument> {
 
     /**
      * A unique identifier for the client/panel with which the client will be registered
@@ -106,14 +36,7 @@ export interface GlspVscodeClient {
     /**
      * The document object belonging to the client;
      */
-    readonly document: GlspDiagramDocument;
-
-    /**
-     * An event emitter which the VSCode integration will use to notify about dirty
-     * state changes. You can use the event attached to this emitter to provide
-     * the `onDidChangeCustomDocument` property on your `CustomEditorProvider`.
-     */
-    readonly onDidChangeCustomDocumentEventEmitter: vscode.EventEmitter<vscode.CustomDocumentEditEvent<GlspDiagramDocument>>;
+    readonly document: D;
 
     /**
      * This event emitter is used by the VSCode integration to pass messages/actions

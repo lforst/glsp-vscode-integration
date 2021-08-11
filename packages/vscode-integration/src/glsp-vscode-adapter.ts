@@ -48,18 +48,33 @@ import { GlspVscodeAdapterConfiguration, GlspVscodeClient } from './types';
  *
  * Selection updates can be listened to using the `onSelectionUpdate` property.
  */
-export class GlspVscodeAdapter implements vscode.Disposable {
-    public onSelectionUpdate: vscode.Event<string[]>;
+export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDocument> implements vscode.Disposable {
 
     /** Maps clientId to corresponding GlspVscodeClient. */
-    private readonly clientMap = new Map<string, GlspVscodeClient>();
+    private readonly clientMap = new Map<string, GlspVscodeClient<D>>();
+    /** Maps Documents to corresponding clientId. */
+    private readonly documentMap = new Map<D, string>();
     /** Maps clientId to selected elementIDs for that client. */
     private readonly clientSelectionMap = new Map<string, string[]>();
 
     private readonly options: Required<GlspVscodeAdapterConfiguration>;
     private readonly diagnostics = vscode.languages.createDiagnosticCollection();
     private readonly selectionUpdateEmitter = new vscode.EventEmitter<string[]>();
+    private readonly onDocumentSavedEmitter = new vscode.EventEmitter<D>();
+    private readonly onDidChangeCustomDocumentEventEmitter = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<D>>();
     private readonly disposables: vscode.Disposable[] = [];
+
+    /**
+     * A subscribable event which fires with an array containing the IDs of all
+     * selected elements when the selection of the editor changes.
+     */
+    public onSelectionUpdate: vscode.Event<string[]>;
+
+    /**
+     * A subscribable event which fires with an array containing the IDs of all
+     * selected elements when the selection of the editor changes.
+     */
+    public onDidChangeCustomDocument: vscode.Event<vscode.CustomDocumentEditEvent<D>>;
 
     constructor(options: GlspVscodeAdapterConfiguration) {
         // Create default options
@@ -77,6 +92,7 @@ export class GlspVscodeAdapter implements vscode.Disposable {
         };
 
         this.onSelectionUpdate = this.selectionUpdateEmitter.event;
+        this.onDidChangeCustomDocument = this.onDidChangeCustomDocumentEventEmitter.event;
 
         // Set up message listener for server
         const serverMessageListener = this.options.server.onServerSend(message => {
@@ -122,8 +138,9 @@ export class GlspVscodeAdapter implements vscode.Disposable {
      *
      * @param client The client to register.
      */
-    public registerClient(client: GlspVscodeClient): void {
+    public registerClient(client: GlspVscodeClient<D>): void {
         this.clientMap.set(client.clientId, client);
+        this.documentMap.set(client.document, client.clientId);
 
         // Set up message listener for client
         const clientMessageListener = client.onClientSend(message => {
@@ -161,31 +178,14 @@ export class GlspVscodeAdapter implements vscode.Disposable {
             }
         });
 
-        const onSaveListener = client.document.onSaveDocumentEvent(() => {
-            this.sendActionToClient(client.clientId, new SaveModelAction());
-        });
-
-        const onSaveAsListener = client.document.onSaveDocumentAsEvent(({ destination }) => {
-            this.sendActionToClient(client.clientId, new SaveModelAction(destination.path));
-        });
-
-        const onRevertListener = client.document.onRevertDocumentEvent(({ diagramType }) => {
-            this.sendActionToClient(client.clientId, new RequestModelAction({
-                sourceUri: client.document.uri.toString(),
-                diagramType: diagramType
-            }));
-        });
-
         // Cleanup when client panel is closed
         const panelOnDisposeListener = client.webviewPanel.onDidDispose(() => {
             this.diagnostics.set(client.document.uri, undefined); // this clears the diagnostics for the file
             this.clientMap.delete(client.clientId);
+            this.documentMap.delete(client.document);
             this.clientSelectionMap.delete(client.clientId);
             viewStateListener.dispose();
             clientMessageListener.dispose();
-            onSaveListener.dispose();
-            onSaveAsListener.dispose();
-            onRevertListener.dispose();
             panelOnDisposeListener.dispose();
         });
     }
@@ -270,9 +270,9 @@ export class GlspVscodeAdapter implements vscode.Disposable {
             if (client && SetDirtyStateAction.is(action)) {
                 const reason = action.reason || '';
                 if (reason === DirtyStateChangeReason.SAVE) {
-                    client.document.onDocumentSavedEventEmitter.fire();
+                    this.onDocumentSavedEmitter.fire(client.document);
                 } else if (reason === DirtyStateChangeReason.OPERATION && action.isDirty) {
-                    client.onDidChangeCustomDocumentEventEmitter.fire({
+                    this.onDidChangeCustomDocumentEventEmitter.fire({
                         document: client.document,
                         undo: () => {
                             this.sendActionToClient(client.clientId, new UndoOperation());
@@ -361,6 +361,41 @@ export class GlspVscodeAdapter implements vscode.Disposable {
         }
 
         return callback(message, false);
+    }
+
+    public async saveDocument(document: D, destination?: vscode.Uri): Promise<void> {
+        const clientId = this.documentMap.get(document);
+        if (clientId) {
+            return new Promise<void>(resolve => {
+                const listener = this.onDocumentSavedEmitter.event(savedDocument => {
+                    if (document === savedDocument) {
+                        listener.dispose();
+                        resolve();
+                    }
+                });
+                this.sendActionToClient(clientId, new SaveModelAction(destination?.path));
+            });
+        } else {
+            if (this.options.logging) {
+                console.error('Saving failed: Document not registered');
+            }
+            throw new Error('Saving failed.');
+        }
+    }
+
+    public async revertDocument(document: D, diagramType: string): Promise<void> {
+        const clientId = this.documentMap.get(document);
+        if (clientId) {
+            this.sendActionToClient(clientId, new RequestModelAction({
+                sourceUri: document.uri.toString(),
+                diagramType
+            }));
+        } else {
+            if (this.options.logging) {
+                console.error('Backup failed: Document not registered');
+            }
+            throw new Error('Backup failed.');
+        }
     }
 
     public dispose(): void {

@@ -20,73 +20,27 @@ import * as path from 'path';
 import { isActionMessage, isWebviewReadyMessage } from 'sprotty-vscode-protocol';
 
 import { GlspVscodeAdapter } from '@eclipse-glsp/vscode-integration';
-import { GlspDiagramDocument } from '@eclipse-glsp/vscode-integration/lib/quickstart-components';
+import { GlspEditorProvider } from '@eclipse-glsp/vscode-integration/lib/quickstart-components';
 
-const DIAGRAM_TYPE = 'workflow-diagram';
-
-export default class WorkflowEditorProvider implements vscode.CustomEditorProvider<GlspDiagramDocument> {
-    private readonly onDidChangeCustomDocumentEventEmitter = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<GlspDiagramDocument>>();
-    onDidChangeCustomDocument: vscode.Event<vscode.CustomDocumentEditEvent<GlspDiagramDocument>>;
+export default class WorkflowEditorProvider extends GlspEditorProvider {
+    diagramType = 'workflow-diagram';
 
     /** Used to generate continuous and unique clientIds - TODO: consider replacing this with uuid. */
     private viewCount = 0;
 
     constructor(
         private readonly extensionContext: vscode.ExtensionContext,
-        private readonly vscodeAdapter: GlspVscodeAdapter
+        readonly glspVscodeAdapter: GlspVscodeAdapter
     ) {
-        this.onDidChangeCustomDocument = this.onDidChangeCustomDocumentEventEmitter.event;
+        super();
     }
 
-    saveCustomDocument(document: GlspDiagramDocument, cancellation: vscode.CancellationToken): Thenable<void> {
-        const savePromise = new Promise(resolve => {
-            const saveListener = document.onDocumentSavedEventEmitter.event(() => {
-                resolve();
-                saveListener.dispose();
-            });
-        });
-        document.onSaveDocumentEventEmitter.fire({ cancellation });
-        return savePromise;
-    }
-
-    saveCustomDocumentAs(document: GlspDiagramDocument, destination: vscode.Uri, cancellation: vscode.CancellationToken): Thenable<void> {
-        const savePromise = new Promise(resolve => {
-            const saveListener = document.onDocumentSavedEventEmitter.event(() => {
-                resolve();
-                saveListener.dispose();
-            });
-        });
-        document.onSaveDocumentAsEventEmitter.fire({ destination, cancellation });
-        return savePromise;
-    }
-
-    revertCustomDocument(document: GlspDiagramDocument, cancellation: vscode.CancellationToken): Thenable<void> {
-        document.onRevertDocumentEventEmitter.fire({ cancellation, diagramType: DIAGRAM_TYPE });
-        return Promise.resolve();
-    }
-
-    backupCustomDocument(
-        document: GlspDiagramDocument,
-        context: vscode.CustomDocumentBackupContext,
-        cancellation: vscode.CancellationToken
-    ): Thenable<vscode.CustomDocumentBackup> {
-        document.onBackupDocumentEventEmitter.fire({ context, cancellation });
-        return Promise.resolve({
-            id: context.destination.toString(),
-            delete: () => undefined
-        });
-    }
-
-    openCustomDocument(uri: vscode.Uri, openContext: vscode.CustomDocumentOpenContext, token: vscode.CancellationToken): GlspDiagramDocument | Thenable<GlspDiagramDocument> {
-        return new GlspDiagramDocument(uri);
-    }
-
-    resolveCustomEditor(document: GlspDiagramDocument, webviewPanel: vscode.WebviewPanel, token: vscode.CancellationToken): void | Thenable<void> {
+    resolveCustomEditor(document: vscode.CustomDocument, webviewPanel: vscode.WebviewPanel, token: vscode.CancellationToken): void | Thenable<void> {
         // This is used to initialize sprotty for our diagram
         const sprottyDiagramIdentifier = {
-            diagramType: DIAGRAM_TYPE,
+            diagramType: this.diagramType,
             uri: serializeUri(document.uri),
-            clientId: `${DIAGRAM_TYPE}_${this.viewCount++}`
+            clientId: `${this.diagramType}_${this.viewCount++}`
         };
 
         // Promise that resolves when sprotty sends its ready-message
@@ -138,13 +92,12 @@ export default class WorkflowEditorProvider implements vscode.CustomEditorProvid
         });
 
         // Register document/diagram panel/model in vscode adapter
-        this.vscodeAdapter.registerClient({
+        this.glspVscodeAdapter.registerClient({
             clientId: sprottyDiagramIdentifier.clientId,
             onClientReceiveEmitter: receiveMessageFromServerEmitter,
             onClientSend: sendMessageToServerEmitter.event,
             webviewPanel: webviewPanel,
-            document: document,
-            onDidChangeCustomDocumentEventEmitter: this.onDidChangeCustomDocumentEventEmitter
+            document: document
         });
 
         // Initialize diagram
