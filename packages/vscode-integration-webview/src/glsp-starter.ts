@@ -17,7 +17,7 @@ import { Container } from 'inversify';
 import {
     DiagramServer,
     NavigateToExternalTargetAction,
-    RequestExportSvgAction,
+    ExportSvgAction,
     SelectAction,
     TYPES
 } from '@eclipse-glsp/client';
@@ -67,7 +67,7 @@ export abstract class GLSPStarter extends SprottyStarter {
             RequestClipboardDataAction.KIND,
             SetClipboardDataAction.KIND,
             SelectAction.KIND,
-            RequestExportSvgAction.KIND
+            ExportSvgAction.KIND
         ];
     }
 }
