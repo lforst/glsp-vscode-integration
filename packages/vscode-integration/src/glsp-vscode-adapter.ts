@@ -391,6 +391,10 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
     /**
      * Reverts a document. Make sure to call this function in the `revertCustomDocument`
      * functions of your `CustomEditorProvider` implementation.
+     *
+     * @param document Document to revert.
+     * @param diagramType Diagram type as it is configured on the server.
+     * @returns A promise that resolves when the file has been successfully reverted.
      */
     public async revertDocument(document: D, diagramType: string): Promise<void> {
         const clientId = this.documentMap.get(document);
