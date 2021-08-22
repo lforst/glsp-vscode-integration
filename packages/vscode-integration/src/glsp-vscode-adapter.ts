@@ -68,14 +68,7 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
      * A subscribable event which fires with an array containing the IDs of all
      * selected elements when the selection of the editor changes.
      */
-    public onSelectionUpdate: vscode.Event<string[]>;
-
-    /**
-     * A subscribable event which fires when a document changed. The event body
-     * will contain that document. Use this event for the onDidChangeCustomDocument
-     * on your implementation of the `CustomEditorProvider`.
-     */
-    public onDidChangeCustomDocument: vscode.Event<vscode.CustomDocumentEditEvent<D>>;
+    public readonly onSelectionUpdate: vscode.Event<string[]>;
 
     constructor(options: GlspVscodeAdapterConfiguration) {
         // Create default options
@@ -93,7 +86,6 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
         };
 
         this.onSelectionUpdate = this.selectionUpdateEmitter.event;
-        this.onDidChangeCustomDocument = this.onDidChangeCustomDocumentEventEmitter.event;
 
         // Set up message listener for server
         const serverMessageListener = this.options.server.onServerSend(message => {
@@ -107,20 +99,15 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
 
             // Run message through first user-provided interceptor (pre-receive)
             this.options.onBeforeReceiveMessageFromServer(message, (newMessage, shouldBeProcessedByAdapter) => {
-                if (shouldBeProcessedByAdapter) {
-                    this.processMessage(newMessage, 'server', (processedMessage, messageChanged) => {
-                        // Run message through second user-provided interceptor (pre-send) - processed
-                        const filteredMessage = this.options.onBeforePropagateMessageToClient(newMessage, processedMessage, messageChanged);
-                        if (typeof filteredMessage !== 'undefined' && isActionMessage(filteredMessage)) {
-                            this.sendMessageToClient(filteredMessage.clientId, filteredMessage);
-                        }
-                    });
-                } else {
-                    // Run message through second user-provided interceptor (pre-send) - unprocessed
-                    const filteredMessage = this.options.onBeforePropagateMessageToClient(newMessage, newMessage, false);
-                    if (typeof filteredMessage !== 'undefined' && isActionMessage(filteredMessage)) {
-                        this.sendMessageToClient(filteredMessage.clientId, filteredMessage);
-                    }
+
+                const { processedMessage, messageChanged } = shouldBeProcessedByAdapter ?
+                    this.processMessage(newMessage, 'server') :
+                    { processedMessage: message, messageChanged: false };
+
+                // Run message through second user-provided interceptor (pre-send) - processed
+                const filteredMessage = this.options.onBeforePropagateMessageToClient(newMessage, processedMessage, messageChanged);
+                if (typeof filteredMessage !== 'undefined' && isActionMessage(filteredMessage)) {
+                    this.sendMessageToClient(filteredMessage.clientId, filteredMessage);
                 }
             });
         });
@@ -155,20 +142,14 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
 
             // Run message through first user-provided interceptor (pre-receive)
             this.options.onBeforeReceiveMessageFromClient(message, (newMessage, shouldBeProcessedByAdapter) => {
-                if (shouldBeProcessedByAdapter) {
-                    this.processMessage(newMessage, 'client', (processedMessage, messageChanged) => {
-                        // Run message through second user-provided interceptor (pre-send) - processed
-                        const filteredMessage = this.options.onBeforePropagateMessageToServer(newMessage, processedMessage, messageChanged);
-                        if (typeof filteredMessage !== 'undefined') {
-                            this.options.server.onServerReceiveEmitter.fire(filteredMessage);
-                        }
-                    });
-                } else {
-                    // Run message through second user-provided interceptor (pre-send) - unprocessed
-                    const filteredMessage = this.options.onBeforePropagateMessageToServer(newMessage, newMessage, false);
-                    if (typeof filteredMessage !== 'undefined') {
-                        this.options.server.onServerReceiveEmitter.fire(filteredMessage);
-                    }
+                const { processedMessage, messageChanged } = shouldBeProcessedByAdapter ?
+                    this.processMessage(newMessage, 'client') :
+                    { processedMessage: message, messageChanged: false };
+
+                const filteredMessage = this.options.onBeforePropagateMessageToServer(newMessage, processedMessage, messageChanged);
+
+                if (typeof filteredMessage !== 'undefined') {
+                    this.options.server.onServerReceiveEmitter.fire(filteredMessage);
                 }
             });
         });
@@ -244,20 +225,11 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
      *
      * @param message The original received message.
      * @param origin The origin of the received message.
-     * @param callback A callback containing the message to be propagated, alongside
-     * a flag indicating whether the propagated message differs from the original
-     * message.
      */
     private processMessage(
         message: unknown,
-        origin: 'client' | 'server',
-        callback: (
-            /** The message to propagate. `undefined` here will stop propagation. */
-            newMessage: unknown,
-            /** Wether the original message was modified before being passed into `newMessage`. */
-            messageChanged: boolean
-        ) => void
-    ): void {
+        origin: 'client' | 'server'
+    ): { processedMessage: unknown; messageChanged: boolean } {
         if (isActionMessage(message)) {
             const client = this.clientMap.get(message.clientId);
             const action = message.action;
@@ -283,9 +255,9 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
             // Diagnostic actions
             if (client && SetMarkersAction.is(action)) {
                 const SEVERITY_MAP = {
-                    'info': 2,
-                    'warning': 1,
-                    'error': 0
+                    'info': vscode.DiagnosticSeverity.Information,
+                    'warning': vscode.DiagnosticSeverity.Warning,
+                    'error': vscode.DiagnosticSeverity.Error
                 };
 
                 const updatedDiagnostics = action.markers.map(marker => new vscode.Diagnostic(
@@ -318,7 +290,7 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
                     );
 
                 // Do not propagate action
-                return callback(undefined, true);
+                return { processedMessage: undefined, messageChanged: true };
             }
 
             // Selection action
@@ -328,7 +300,7 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
 
                 if (origin === 'client') {
                     // Do not propagate action if it comes from client in order to avoid an infinite loop as both, client and server will mirror the Selection action
-                    return callback(undefined, true);
+                    return { processedMessage: undefined, messageChanged: true };
                 }
             }
 
@@ -352,11 +324,11 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
                 );
 
                 // Do not propagate action if it comes from client in order to avoid an infinite loop as both, client and server will mirror the Export SVG action
-                return callback(undefined, true);
+                return { processedMessage: undefined, messageChanged: true };
             }
         }
 
-        return callback(message, false);
+        return { processedMessage: message, messageChanged: false };
     }
 
     /**
@@ -368,7 +340,7 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
      * file will instead be saved at this location.
      * @returns A promise that resolves when the file has been successfully saved.
      */
-    public async saveDocument(document: D, destination?: vscode.Uri): Promise<void> {
+    private async saveDocument(document: D, destination?: vscode.Uri): Promise<void> {
         const clientId = this.documentMap.get(document);
         if (clientId) {
             return new Promise<void>(resolve => {
@@ -396,12 +368,12 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
      * @param diagramType Diagram type as it is configured on the server.
      * @returns A promise that resolves when the file has been successfully reverted.
      */
-    public async revertDocument(document: D, diagramType: string): Promise<void> {
+    private async revertDocument(document: D): Promise<void> {
         const clientId = this.documentMap.get(document);
         if (clientId) {
             this.sendActionToClient(clientId, new RequestModelAction({
                 sourceUri: document.uri.toString(),
-                diagramType
+                diagramType: this.options.diagramType
             }));
         } else {
             if (this.options.logging) {
@@ -409,6 +381,71 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
             }
             throw new Error('Backup failed.');
         }
+    }
+
+    public wrapEditorProvider(
+        editorProvider: Partial<vscode.CustomEditorProvider<D>> & Pick<vscode.CustomEditorProvider<D>, 'resolveCustomEditor'>
+    ): vscode.CustomEditorProvider {
+        if (editorProvider.onDidChangeCustomDocument) {
+            editorProvider.onDidChangeCustomDocument(e => {
+                this.onDidChangeCustomDocumentEventEmitter.fire(e);
+            });
+        }
+
+        const saveCustomDocument = (document: D, cancellation: vscode.CancellationToken): Thenable<void> => Promise.all([
+            editorProvider.saveCustomDocument?.(document, cancellation),
+            this.saveDocument(document)
+        ]).then(() => undefined);
+
+        const saveCustomDocumentAs = (document: D, destination: vscode.Uri, cancellation: vscode.CancellationToken): Thenable<void> => Promise.all([
+            editorProvider.saveCustomDocumentAs?.(document, destination, cancellation),
+            this.saveDocument(document, destination)
+        ]).then(() => undefined);
+
+        const revertCustomDocument = (document: D, cancellation: vscode.CancellationToken): Thenable<void> => Promise.all([
+            editorProvider.revertCustomDocument?.(document, cancellation),
+            this.revertDocument(document)
+        ]).then(() => undefined);
+
+        const backupCustomDocument = (
+            document: D,
+            context: vscode.CustomDocumentBackupContext,
+            cancellation: vscode.CancellationToken
+        ): Thenable<vscode.CustomDocumentBackup> => {
+            if (editorProvider.backupCustomDocument) {
+                return editorProvider.backupCustomDocument(document, context, cancellation);
+            } else {
+                return Promise.resolve({ id: context.destination.toString(), delete: () => undefined });
+            }
+        };
+
+        const openCustomDocument = (
+            uri: vscode.Uri,
+            openContext: vscode.CustomDocumentOpenContext,
+            token: vscode.CancellationToken
+        ): vscode.CustomDocument | Thenable<vscode.CustomDocument> => {
+            if (editorProvider.openCustomDocument) {
+                return editorProvider.openCustomDocument(uri, openContext, token);
+            } else {
+                return { uri, dispose: () => undefined };
+            }
+        };
+
+        const resolveCustomEditor = (
+            document: D,
+            webviewPanel: vscode.WebviewPanel,
+            token: vscode.CancellationToken
+        ): Thenable<void> | void => editorProvider.resolveCustomEditor(document, webviewPanel, token);
+
+        return {
+            onDidChangeCustomDocument: this.onDidChangeCustomDocumentEventEmitter.event,
+            saveCustomDocument,
+            saveCustomDocumentAs,
+            revertCustomDocument,
+            backupCustomDocument,
+            openCustomDocument,
+            resolveCustomEditor
+        };
     }
 
     public dispose(): void {
