@@ -35,7 +35,6 @@ import {
 import WorkflowEditorProvider from './workflow-editor-provider';
 
 const DEFAULT_SERVER_PORT = '5007';
-const DIAGRAM_TYPE = 'workflow-diagram';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
     // Start server process using quickstart component
@@ -60,8 +59,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // Initialize GLSP-VSCode adapter with server wrapper
     const glspVscodeAdapter = new GlspVscodeAdapter({
         server: workflowServerAdapter,
-        logging: true,
-        diagramType: DIAGRAM_TYPE
+        logging: true
     });
 
     const customEditorProvider = vscode.window.registerCustomEditorProvider(

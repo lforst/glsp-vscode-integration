@@ -29,7 +29,8 @@ import {
     NavigateToExternalTargetAction,
     SelectAction,
     ExportSvgAction,
-    Action
+    Action,
+    JsonPrimitive
 } from './actions';
 
 import { GlspVscodeAdapterConfiguration, GlspVscodeClient } from './types';
@@ -368,13 +369,10 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
      * @param diagramType Diagram type as it is configured on the server.
      * @returns A promise that resolves when the file has been successfully reverted.
      */
-    private async revertDocument(document: D): Promise<void> {
+    public async revertDocument(document: D, requestModelActionOptions?: { [key: string]: JsonPrimitive }): Promise<void> {
         const clientId = this.documentMap.get(document);
         if (clientId) {
-            this.sendActionToClient(clientId, new RequestModelAction({
-                sourceUri: document.uri.toString(),
-                diagramType: this.options.diagramType
-            }));
+            this.sendActionToClient(clientId, new RequestModelAction(requestModelActionOptions));
         } else {
             if (this.options.logging) {
                 console.error('Backup failed: Document not registered');
@@ -402,10 +400,13 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
             this.saveDocument(document, destination)
         ]).then(() => undefined);
 
-        const revertCustomDocument = (document: D, cancellation: vscode.CancellationToken): Thenable<void> => Promise.all([
-            editorProvider.revertCustomDocument?.(document, cancellation),
-            this.revertDocument(document)
-        ]).then(() => undefined);
+        const revertCustomDocument = (document: D, cancellation: vscode.CancellationToken): Thenable<void> => {
+            if (editorProvider.revertCustomDocument) {
+                return editorProvider.revertCustomDocument?.(document, cancellation);
+            } else {
+                return Promise.resolve();
+            }
+        };
 
         const backupCustomDocument = (
             document: D,

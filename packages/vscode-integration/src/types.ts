@@ -119,8 +119,6 @@ export interface GlspVscodeAdapterConfiguration {
      */
     server: GlspVscodeServer;
 
-    diagramType: string;
-
     /**
      * Wether the GLSP-VSCode integration should log various events. This is useful
      * if you want to find out what events the VSCode integration is receiving from

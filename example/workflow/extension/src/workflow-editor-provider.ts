@@ -22,7 +22,7 @@ import { GlspVscodeAdapter } from '@eclipse-glsp/vscode-integration';
 
 const DIAGRAM_TYPE = 'workflow-diagram';
 
-export default class WorkflowEditorProvider implements Pick<vscode.CustomEditorProvider, 'resolveCustomEditor'> {
+export default class WorkflowEditorProvider {
 
     /** Used to generate continuous and unique clientIds - TODO: consider replacing this with uuid. */
     private viewCount = 0;
@@ -31,6 +31,13 @@ export default class WorkflowEditorProvider implements Pick<vscode.CustomEditorP
         readonly extensionContext: vscode.ExtensionContext,
         readonly glspVscodeAdapter: GlspVscodeAdapter
     ) { }
+
+    revertCustomDocument(document: vscode.CustomDocument, cancellation: vscode.CancellationToken): Thenable<void> {
+        return this.glspVscodeAdapter.revertDocument(document, {
+            sourceUri: document.uri.toString(),
+            diagramType: DIAGRAM_TYPE
+        });
+    }
 
     resolveCustomEditor(document: vscode.CustomDocument, webviewPanel: vscode.WebviewPanel, token: vscode.CancellationToken): void | Thenable<void> {
         // This is used to initialize sprotty for our diagram
