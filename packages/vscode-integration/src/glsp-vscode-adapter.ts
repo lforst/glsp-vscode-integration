@@ -34,6 +34,7 @@ import {
 } from './actions';
 
 import { GlspVscodeAdapterConfiguration, GlspVscodeClient } from './types';
+import { ClientRegistry } from './client-registry';
 
 /**
  * The `GlspVscodeAdapter` acts as the bridge between GLSP-Clients and the GLSP-Server
@@ -50,13 +51,10 @@ import { GlspVscodeAdapterConfiguration, GlspVscodeClient } from './types';
  * Selection updates can be listened to using the `onSelectionUpdate` property.
  */
 export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDocument> implements vscode.Disposable {
-
-    /** Maps clientId to corresponding GlspVscodeClient. */
-    private readonly clientMap = new Map<string, GlspVscodeClient<D>>();
-    /** Maps Documents to corresponding clientId. */
-    private readonly documentMap = new Map<D, string>();
     /** Maps clientId to selected elementIDs for that client. */
     private readonly clientSelectionMap = new Map<string, string[]>();
+
+    private readonly clientRegistry = new ClientRegistry<D>();
 
     private readonly options: Required<GlspVscodeAdapterConfiguration>;
     private readonly diagnostics = vscode.languages.createDiagnosticCollection();
@@ -99,7 +97,7 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
             }
 
             // Run message through first user-provided interceptor (pre-receive)
-            this.options.onBeforeReceiveMessageFromServer(message, (newMessage, shouldBeProcessedByAdapter) => {
+            this.options.onBeforeReceiveMessageFromServer(message, (newMessage, shouldBeProcessedByAdapter = true) => {
 
                 const { processedMessage, messageChanged } = shouldBeProcessedByAdapter ?
                     this.processMessage(newMessage, 'server') :
@@ -128,8 +126,7 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
      * @param client The client to register.
      */
     public registerClient(client: GlspVscodeClient<D>): void {
-        this.clientMap.set(client.clientId, client);
-        this.documentMap.set(client.document, client.clientId);
+        this.clientRegistry.addClient(client);
 
         // Set up message listener for client
         const clientMessageListener = client.onClientSend(message => {
@@ -142,7 +139,7 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
             }
 
             // Run message through first user-provided interceptor (pre-receive)
-            this.options.onBeforeReceiveMessageFromClient(message, (newMessage, shouldBeProcessedByAdapter) => {
+            this.options.onBeforeReceiveMessageFromClient(message, (newMessage, shouldBeProcessedByAdapter = true) => {
                 const { processedMessage, messageChanged } = shouldBeProcessedByAdapter ?
                     this.processMessage(newMessage, 'client') :
                     { processedMessage: message, messageChanged: false };
@@ -164,8 +161,7 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
         // Cleanup when client panel is closed
         const panelOnDisposeListener = client.webviewPanel.onDidDispose(() => {
             this.diagnostics.set(client.document.uri, undefined); // this clears the diagnostics for the file
-            this.clientMap.delete(client.clientId);
-            this.documentMap.delete(client.document);
+            this.clientRegistry.removeClient(client);
             this.clientSelectionMap.delete(client.clientId);
             viewStateListener.dispose();
             clientMessageListener.dispose();
@@ -180,13 +176,9 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
      * @param action The action to send to the active client.
      */
     public sendActionToActiveClient(action: Action): void {
-        this.clientMap.forEach(client => {
+        this.clientRegistry.clients.forEach(client => {
             if (client.webviewPanel.active) {
-                client.onClientReceiveEmitter.fire({
-                    clientId: client.clientId,
-                    action: action,
-                    __localDispatch: true
-                });
+                this.sendActionToClient(client.clientId, action);
             }
         });
     }
@@ -198,7 +190,7 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
      * @param message Message to send.
      */
     private sendMessageToClient(clientId: string, message: unknown): void {
-        const client = this.clientMap.get(clientId);
+        const client = this.clientRegistry.getClientById(clientId);
         if (client) {
             client.onClientReceiveEmitter.fire(message);
         }
@@ -232,7 +224,7 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
         origin: 'client' | 'server'
     ): { processedMessage: unknown; messageChanged: boolean } {
         if (isActionMessage(message)) {
-            const client = this.clientMap.get(message.clientId);
+            const client = this.clientRegistry.getClientById(message.clientId);
             const action = message.action;
 
             // Dirty state & save actions
@@ -342,8 +334,8 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
      * @returns A promise that resolves when the file has been successfully saved.
      */
     private async saveDocument(document: D, destination?: vscode.Uri): Promise<void> {
-        const clientId = this.documentMap.get(document);
-        if (clientId) {
+        const client = this.clientRegistry.getClientByDocument(document);
+        if (client) {
             return new Promise<void>(resolve => {
                 const listener = this.onDocumentSavedEmitter.event(savedDocument => {
                     if (document === savedDocument) {
@@ -351,7 +343,7 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
                         resolve();
                     }
                 });
-                this.sendActionToClient(clientId, new SaveModelAction(destination?.path));
+                this.sendActionToClient(client.clientId, new SaveModelAction(destination?.path));
             });
         } else {
             if (this.options.logging) {
@@ -370,9 +362,9 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
      * @returns A promise that resolves when the file has been successfully reverted.
      */
     public async revertDocument(document: D, requestModelActionOptions?: { [key: string]: JsonPrimitive }): Promise<void> {
-        const clientId = this.documentMap.get(document);
-        if (clientId) {
-            this.sendActionToClient(clientId, new RequestModelAction(requestModelActionOptions));
+        const client = this.clientRegistry.getClientByDocument(document);
+        if (client) {
+            this.sendActionToClient(client.clientId, new RequestModelAction(requestModelActionOptions));
         } else {
             if (this.options.logging) {
                 console.error('Backup failed: Document not registered');
@@ -404,7 +396,7 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
             if (editorProvider.revertCustomDocument) {
                 return editorProvider.revertCustomDocument?.(document, cancellation);
             } else {
-                return Promise.resolve();
+                return Promise.reject(new Error('Reverting document failed: feature not implemented'));
             }
         };
 
