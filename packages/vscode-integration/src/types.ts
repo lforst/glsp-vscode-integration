@@ -20,7 +20,7 @@ import * as vscode from 'vscode';
  * Any clients registered on the GLSP VSCode integration need to implement this
  * interface.
  */
-export interface GlspVscodeClient<D extends vscode.CustomDocument = vscode.CustomDocument> {
+export interface GlspVscodeClient<D extends vscode.CustomDocument> {
 
     /**
      * A unique identifier for the client/panel with which the client will be registered
@@ -107,7 +107,7 @@ interface InterceptorCallback {
      * @param shouldBeProcessedByAdapter Optional parameter indicating whether the
      * VSCode integration should process the message. That usually means providing
      * functionality based on the message but also modifying it or blocking it from
-     * being propagated further.
+     * being propagated further. Default: `true`
      */
     (newMessage: unknown | undefined, shouldBeProcessedByAdapter?: boolean): void;
 }
