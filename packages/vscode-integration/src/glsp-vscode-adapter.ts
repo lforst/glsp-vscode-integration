@@ -30,11 +30,15 @@ import {
     SelectAction,
     ExportSvgAction,
     Action,
-    JsonPrimitive
+    JsonPrimitive,
+    CenterAction
 } from './actions';
 
 import { GlspVscodeAdapterConfiguration, GlspVscodeClient } from './types';
 import { ClientRegistry } from './client-registry';
+
+const DIAGNOSTIC_ELEMENT_ID_QUERY_PARAM = 'glspVscodeIntegrationNavigationTargetElementId';
+const DIAGNOSTIC_CLIENT_ID_QUERY_PARAM = 'glspVscodeIntegrationNavigationClientId';
 
 /**
  * The `GlspVscodeAdapter` acts as the bridge between GLSP-Clients and the GLSP-Server
@@ -57,7 +61,7 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
     private readonly clientRegistry = new ClientRegistry<D>();
 
     private readonly options: Required<GlspVscodeAdapterConfiguration>;
-    private readonly diagnostics = vscode.languages.createDiagnosticCollection();
+    private readonly diagnosticsMap = new Map<string, vscode.DiagnosticCollection>(); // maps clientId to DiagnosticCollections
     private readonly selectionUpdateEmitter = new vscode.EventEmitter<string[]>();
     private readonly onDocumentSavedEmitter = new vscode.EventEmitter<D>();
     private readonly onDidChangeCustomDocumentEventEmitter = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<D>>();
@@ -112,7 +116,6 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
         });
 
         this.disposables.push(
-            this.diagnostics,
             this.selectionUpdateEmitter,
             serverMessageListener
         );
@@ -127,6 +130,9 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
      */
     public registerClient(client: GlspVscodeClient<D>): void {
         this.clientRegistry.addClient(client);
+
+        const diagnostics = vscode.languages.createDiagnosticCollection();
+        this.diagnosticsMap.set(client.clientId, diagnostics);
 
         // Set up message listener for client
         const clientMessageListener = client.onClientSend(message => {
@@ -160,7 +166,7 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
 
         // Cleanup when client panel is closed
         const panelOnDisposeListener = client.webviewPanel.onDidDispose(() => {
-            this.diagnostics.set(client.document.uri, undefined); // this clears the diagnostics for the file
+            diagnostics.dispose(); // this clears the diagnostics for the file
             this.clientRegistry.removeClient(client);
             this.clientSelectionMap.delete(client.clientId);
             viewStateListener.dispose();
@@ -253,13 +259,22 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
                     'error': vscode.DiagnosticSeverity.Error
                 };
 
-                const updatedDiagnostics = action.markers.map(marker => new vscode.Diagnostic(
-                    new vscode.Range(0, 0, 0, 0), // Must have be defined as such - no workarounds
-                    marker.description,
-                    SEVERITY_MAP[marker.kind]
-                ));
+                const updatedDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = action.markers.map(marker => {
+                    const queryParams = new URLSearchParams(client.document.uri.query);
+                    queryParams.append(DIAGNOSTIC_ELEMENT_ID_QUERY_PARAM, marker.elementId);
+                    queryParams.append(DIAGNOSTIC_CLIENT_ID_QUERY_PARAM, client.clientId);
 
-                this.diagnostics.set(client.document.uri, updatedDiagnostics);
+                    return [
+                        client.document.uri.with({ query: queryParams.toString() }),
+                        [new vscode.Diagnostic(
+                            new vscode.Range(0, 0, 0, 0), // Must have be defined as such - no workarounds
+                            marker.description,
+                            SEVERITY_MAP[marker.kind]
+                        )]
+                    ];
+                });
+
+                this.diagnosticsMap.get(client.clientId)?.set(updatedDiagnostics);
             }
 
             // External targets action
@@ -417,6 +432,24 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
             openContext: vscode.CustomDocumentOpenContext,
             token: vscode.CancellationToken
         ): vscode.CustomDocument | Thenable<vscode.CustomDocument> => {
+            const uriParams = new URLSearchParams(uri.query);
+
+            if (uriParams.has(DIAGNOSTIC_ELEMENT_ID_QUERY_PARAM)) {
+                const targetElementId = uriParams.get(DIAGNOSTIC_ELEMENT_ID_QUERY_PARAM);
+                const targetClientId = uriParams.get(DIAGNOSTIC_CLIENT_ID_QUERY_PARAM);
+
+                if (targetElementId && targetClientId) {
+                    const client = this.clientRegistry.getClientById(targetClientId);
+                    if (client) {
+                        client.webviewPanel.reveal();
+                        this.sendActionToClient(client.clientId, new CenterAction([targetElementId]));
+                    }
+                }
+
+                // New document was opened from diagnostic tab -> return plain document, because it will be instantly disposed anyways
+                return { uri, dispose: () => undefined };
+            }
+
             if (editorProvider.openCustomDocument) {
                 return editorProvider.openCustomDocument(uri, openContext, token);
             } else {
@@ -428,7 +461,15 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
             document: D,
             webviewPanel: vscode.WebviewPanel,
             token: vscode.CancellationToken
-        ): Thenable<void> | void => editorProvider.resolveCustomEditor(document, webviewPanel, token);
+        ): Thenable<void> | void => {
+            const documentUriParams = new URLSearchParams(document.uri.query);
+            if (documentUriParams.has(DIAGNOSTIC_ELEMENT_ID_QUERY_PARAM)) {
+                webviewPanel.dispose();
+                return;
+            }
+
+            return editorProvider.resolveCustomEditor(document, webviewPanel, token);
+        };
 
         return {
             onDidChangeCustomDocument: this.onDidChangeCustomDocumentEventEmitter.event,
