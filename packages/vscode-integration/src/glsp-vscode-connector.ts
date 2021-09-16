@@ -29,10 +29,21 @@ import {
     NavigateToExternalTargetAction,
     SelectAction,
     ExportSvgAction,
-    Action
+    Action,
+    ActionMessage
 } from './actions';
 
 import { GlspVscodeConnectorOptions, GlspVscodeClient } from './types';
+
+export enum MessageOrigin {
+    CLIENT,
+    SERVER
+}
+
+export interface MessageProcessingResult {
+    processedMessage: unknown;
+    messageChanged: boolean;
+}
 
 /**
  * The `GlspVscodeConnector` acts as the bridge between GLSP-Clients and the GLSP-Server
@@ -106,21 +117,15 @@ export class GlspVscodeConnector<D extends vscode.CustomDocument = vscode.Custom
             }
 
             // Run message through first user-provided interceptor (pre-receive)
-            this.options.onBeforeReceiveMessageFromServer(message, (newMessage, shouldBeProcessedByConnector) => {
-                if (shouldBeProcessedByConnector) {
-                    this.processMessage(newMessage, 'server', (processedMessage, messageChanged) => {
-                        // Run message through second user-provided interceptor (pre-send) - processed
-                        const filteredMessage = this.options.onBeforePropagateMessageToClient(newMessage, processedMessage, messageChanged);
-                        if (typeof filteredMessage !== 'undefined' && isActionMessage(filteredMessage)) {
-                            this.sendMessageToClient(filteredMessage.clientId, filteredMessage);
-                        }
-                    });
-                } else {
-                    // Run message through second user-provided interceptor (pre-send) - unprocessed
-                    const filteredMessage = this.options.onBeforePropagateMessageToClient(newMessage, newMessage, false);
-                    if (typeof filteredMessage !== 'undefined' && isActionMessage(filteredMessage)) {
-                        this.sendMessageToClient(filteredMessage.clientId, filteredMessage);
-                    }
+            this.options.onBeforeReceiveMessageFromServer(message, (newMessage, shouldBeProcessedByConnector = true) => {
+                const { processedMessage, messageChanged } = shouldBeProcessedByConnector ?
+                    this.processMessage(newMessage, MessageOrigin.SERVER) :
+                    { processedMessage: message, messageChanged: false };
+
+                // Run message through second user-provided interceptor (pre-send) - processed
+                const filteredMessage = this.options.onBeforePropagateMessageToClient(newMessage, processedMessage, messageChanged);
+                if (typeof filteredMessage !== 'undefined' && isActionMessage(filteredMessage)) {
+                    this.sendMessageToClient(filteredMessage.clientId, filteredMessage);
                 }
             });
         });
@@ -154,21 +159,15 @@ export class GlspVscodeConnector<D extends vscode.CustomDocument = vscode.Custom
             }
 
             // Run message through first user-provided interceptor (pre-receive)
-            this.options.onBeforeReceiveMessageFromClient(message, (newMessage, shouldBeProcessedByConnector) => {
-                if (shouldBeProcessedByConnector) {
-                    this.processMessage(newMessage, 'client', (processedMessage, messageChanged) => {
-                        // Run message through second user-provided interceptor (pre-send) - processed
-                        const filteredMessage = this.options.onBeforePropagateMessageToServer(newMessage, processedMessage, messageChanged);
-                        if (typeof filteredMessage !== 'undefined') {
-                            this.options.server.onSendToServerEmitter.fire(filteredMessage);
-                        }
-                    });
-                } else {
-                    // Run message through second user-provided interceptor (pre-send) - unprocessed
-                    const filteredMessage = this.options.onBeforePropagateMessageToServer(newMessage, newMessage, false);
-                    if (typeof filteredMessage !== 'undefined') {
-                        this.options.server.onSendToServerEmitter.fire(filteredMessage);
-                    }
+            this.options.onBeforeReceiveMessageFromClient(message, (newMessage, shouldBeProcessedByConnector = true) => {
+                const { processedMessage, messageChanged } = shouldBeProcessedByConnector ?
+                    this.processMessage(newMessage, MessageOrigin.CLIENT) :
+                    { processedMessage: message, messageChanged: false };
+
+                const filteredMessage = this.options.onBeforePropagateMessageToServer(newMessage, processedMessage, messageChanged);
+
+                if (typeof filteredMessage !== 'undefined') {
+                    this.options.server.onSendToServerEmitter.fire(filteredMessage);
                 }
             });
         });
@@ -244,119 +243,164 @@ export class GlspVscodeConnector<D extends vscode.CustomDocument = vscode.Custom
      *
      * @param message The original received message.
      * @param origin The origin of the received message.
-     * @param callback A callback containing the message to be propagated, alongside
-     * a flag indicating whether the propagated message differs from the original
-     * message.
+     * @returns An object containing the processed message and an indicator wether
+     * the message was modified.
      */
-    protected processMessage(
-        message: unknown,
-        origin: 'client' | 'server',
-        callback: (
-            /** The message to propagate. `undefined` here will stop propagation. */
-            newMessage: unknown,
-            /** Wether the original message was modified before being passed into `newMessage`. */
-            messageChanged: boolean
-        ) => void
-    ): void {
+    protected processMessage(message: unknown, origin: MessageOrigin): MessageProcessingResult {
         if (isActionMessage(message)) {
             const client = this.clientMap.get(message.clientId);
-            const action = message.action;
 
             // Dirty state & save actions
-            if (client && SetDirtyStateAction.is(action)) {
-                const reason = action.reason || '';
-                if (reason === DirtyStateChangeReason.SAVE) {
-                    this.onDocumentSavedEmitter.fire(client.document);
-                } else if (reason === DirtyStateChangeReason.OPERATION && action.isDirty) {
-                    this.onDidChangeCustomDocumentEventEmitter.fire({
-                        document: client.document,
-                        undo: () => {
-                            this.sendActionToClient(client.clientId, new UndoOperation());
-                        },
-                        redo: () => {
-                            this.sendActionToClient(client.clientId, new RedoOperation());
-                        }
-                    });
-                }
+            if (SetDirtyStateAction.is(message.action)) {
+                return this.handleSetDirtyStateAction(message as ActionMessage<SetDirtyStateAction>, client, origin);
             }
 
             // Diagnostic actions
-            if (client && SetMarkersAction.is(action)) {
-                const SEVERITY_MAP = {
-                    'info': 2,
-                    'warning': 1,
-                    'error': 0
-                };
-
-                const updatedDiagnostics = action.markers.map(marker => new vscode.Diagnostic(
-                    new vscode.Range(0, 0, 0, 0), // Must have be defined as such - no workarounds
-                    marker.description,
-                    SEVERITY_MAP[marker.kind]
-                ));
-
-                this.diagnostics.set(client.document.uri, updatedDiagnostics);
+            if (SetMarkersAction.is(message.action)) {
+                return this.handleSetMarkersAction(message as ActionMessage<SetMarkersAction>, client, origin);
             }
 
             // External targets action
-            if (NavigateToExternalTargetAction.is(action)) {
-                const SHOW_OPTIONS = 'jsonOpenerOptions';
-                const { uri, args } = action.target;
-                let showOptions = { ...args };
-
-                // Give server the possibility to provide options through the `showOptions` field by providing a
-                // stringified version of the `TextDocumentShowOptions`
-                // See: https://code.visualstudio.com/api/references/vscode-api#TextDocumentShowOptions
-                const showOptionsField = args?.[SHOW_OPTIONS];
-                if (showOptionsField) {
-                    showOptions = { ...args, ...(JSON.parse(showOptionsField.toString())) };
-                }
-
-                vscode.window.showTextDocument(vscode.Uri.parse(uri), showOptions)
-                    .then(
-                        () => undefined, // onFulfilled: Do nothing.
-                        () => undefined // onRejected: Do nothing - This is needed as error handling in case the navigationTarget does not exist.
-                    );
-
-                // Do not propagate action
-                return callback(undefined, true);
+            if (NavigateToExternalTargetAction.is(message.action)) {
+                return this.handleNavigateToExternalTargetAction(message as ActionMessage<NavigateToExternalTargetAction>, client, origin);
             }
 
             // Selection action
-            if (client && SelectAction.is(action)) {
-                this.clientSelectionMap.set(client.clientId, action.selectedElementsIDs);
-                this.selectionUpdateEmitter.fire(action.selectedElementsIDs);
-
-                if (origin === 'client') {
-                    // Do not propagate action if it comes from client in order to avoid an infinite loop as both, client and server will mirror the Selection action
-                    return callback(undefined, true);
-                }
+            if (SelectAction.is(message.action)) {
+                return this.handleSelectAction(message as ActionMessage<SelectAction>, client, origin);
             }
 
             // Export SVG action
-            if (ExportSvgAction.is(action)) {
-                vscode.window.showSaveDialog({
-                    filters: { 'SVG': ['svg'] },
-                    saveLabel: 'Export',
-                    title: 'Export as SVG'
-                }).then(
-                    (uri: vscode.Uri | undefined) => {
-                        if (uri) {
-                            fs.writeFile(uri.fsPath, action.svg, { encoding: 'utf-8' }, err => {
-                                if (err) {
-                                    console.error(err);
-                                }
-                            });
-                        }
-                    },
-                    console.error
-                );
-
-                // Do not propagate action if it comes from client in order to avoid an infinite loop as both, client and server will mirror the Export SVG action
-                return callback(undefined, true);
+            if (ExportSvgAction.is(message.action)) {
+                return this.handleExportSvgAction(message as ActionMessage<ExportSvgAction>, client, origin);
             }
         }
 
-        return callback(message, false);
+        // Propagate unchanged message
+        return { processedMessage: message, messageChanged: false };
+    }
+
+    protected handleSetDirtyStateAction(
+        message: ActionMessage<SetDirtyStateAction>,
+        client: GlspVscodeClient<D> | undefined,
+        _origin: MessageOrigin
+    ): MessageProcessingResult {
+        if (client) {
+            const reason = message.action.reason || '';
+            if (reason === DirtyStateChangeReason.SAVE) {
+                this.onDocumentSavedEmitter.fire(client.document);
+            } else if (reason === DirtyStateChangeReason.OPERATION && message.action.isDirty) {
+                this.onDidChangeCustomDocumentEventEmitter.fire({
+                    document: client.document,
+                    undo: () => {
+                        this.sendActionToClient(client.clientId, new UndoOperation());
+                    },
+                    redo: () => {
+                        this.sendActionToClient(client.clientId, new RedoOperation());
+                    }
+                });
+            }
+        }
+
+        // Propagate unchanged message
+        return { processedMessage: message, messageChanged: false };
+    }
+
+    protected handleSetMarkersAction(
+        message: ActionMessage<SetMarkersAction>,
+        client: GlspVscodeClient<D> | undefined,
+        _origin: MessageOrigin
+    ): MessageProcessingResult {
+        if (client) {
+            const SEVERITY_MAP = {
+                'info': vscode.DiagnosticSeverity.Information,
+                'warning': vscode.DiagnosticSeverity.Warning,
+                'error': vscode.DiagnosticSeverity.Error
+            };
+
+            const updatedDiagnostics = message.action.markers.map(marker => new vscode.Diagnostic(
+                new vscode.Range(0, 0, 0, 0), // Must have be defined as such - no workarounds
+                marker.description,
+                SEVERITY_MAP[marker.kind]
+            ));
+
+            this.diagnostics.set(client.document.uri, updatedDiagnostics);
+        }
+
+        // Propagate unchanged message
+        return { processedMessage: message, messageChanged: false };
+    }
+
+    protected handleNavigateToExternalTargetAction(
+        message: ActionMessage<NavigateToExternalTargetAction>,
+        _client: GlspVscodeClient<D> | undefined,
+        _origin: MessageOrigin
+    ): MessageProcessingResult {
+        const SHOW_OPTIONS = 'jsonOpenerOptions';
+        const { uri, args } = message.action.target;
+        let showOptions = { ...args };
+
+        // Give server the possibility to provide options through the `showOptions` field by providing a
+        // stringified version of the `TextDocumentShowOptions`
+        // See: https://code.visualstudio.com/api/references/vscode-api#TextDocumentShowOptions
+        const showOptionsField = args?.[SHOW_OPTIONS];
+        if (showOptionsField) {
+            showOptions = { ...args, ...JSON.parse(showOptionsField.toString()) };
+        }
+
+        vscode.window.showTextDocument(vscode.Uri.parse(uri), showOptions)
+            .then(
+                () => undefined, // onFulfilled: Do nothing.
+                () => undefined // onRejected: Do nothing - This is needed as error handling in case the navigationTarget does not exist.
+            );
+
+        // Do not propagate action
+        return { processedMessage: undefined, messageChanged: true };
+    }
+
+    protected handleSelectAction(
+        message: ActionMessage<SelectAction>,
+        client: GlspVscodeClient<D> | undefined,
+        origin: MessageOrigin
+    ): MessageProcessingResult {
+        if (client) {
+            this.clientSelectionMap.set(client.clientId, message.action.selectedElementsIDs);
+            this.selectionUpdateEmitter.fire(message.action.selectedElementsIDs);
+        }
+
+        if (origin === MessageOrigin.CLIENT) {
+            // Do not propagate action if it comes from client to avoid an infinite loop, as both, client and server will mirror the Selection action
+            return { processedMessage: undefined, messageChanged: true };
+        } else {
+            // Propagate unchanged message
+            return { processedMessage: message, messageChanged: false };
+        }
+    }
+
+    protected handleExportSvgAction(
+        message: ActionMessage<ExportSvgAction>,
+        _client: GlspVscodeClient<D> | undefined,
+        _origin: MessageOrigin
+    ): MessageProcessingResult {
+        vscode.window.showSaveDialog({
+            filters: { 'SVG': ['svg'] },
+            saveLabel: 'Export',
+            title: 'Export as SVG'
+        }).then(
+            (uri: vscode.Uri | undefined) => {
+                if (uri) {
+                    fs.writeFile(uri.fsPath, message.action.svg, { encoding: 'utf-8' }, err => {
+                        if (err) {
+                            console.error(err);
+                        }
+                    });
+                }
+            },
+            console.error
+        );
+
+        // Do not propagate action to avoid an infinite loop, as both, client and server will mirror the Export SVG action
+        return { processedMessage: undefined, messageChanged: true };
     }
 
     /**

@@ -19,9 +19,9 @@ export interface Action {
     readonly kind: string;
 }
 
-export interface ActionMessage {
+export interface ActionMessage<A extends Action = Action> {
     clientId: string;
-    action: Action;
+    action: A;
 }
 
 export function isAction(object: any): object is Action {
