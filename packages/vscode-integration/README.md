@@ -54,12 +54,12 @@ to start the server with very little code:
 import { GlspServerLauncher } from '@eclipse-glsp/vscode-integration/lib/quickstart-components';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-    const workflowServer = new GlspServerLauncher({
+    const serverProcess = new GlspServerLauncher({
         jarPath: '/your/path/to/server.jar',
         serverPort: 5007
     });
-    context.subscriptions.push(workflowServer);
-    await workflowServer.start();
+    context.subscriptions.push(serverProcess);
+    await serverProcess.start();
 }
 ```
 </details>

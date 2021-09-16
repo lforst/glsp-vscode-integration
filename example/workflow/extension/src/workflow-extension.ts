@@ -39,14 +39,14 @@ const DEFAULT_SERVER_PORT = '5007';
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
     // Start server process using quickstart component
     if (process.env.GLSP_SERVER_DEBUG !== 'true') {
-        const workflowServer = new GlspServerLauncher({
+        const serverProcess = new GlspServerLauncher({
             jarPath: path.join(__dirname, '../server/org.eclipse.glsp.example.workflow-0.9.0-SNAPSHOT-glsp.jar'),
             serverPort: JSON.parse(process.env.GLSP_SERVER_PORT || DEFAULT_SERVER_PORT),
             additionalArgs: ['--fileLog', 'true', '--logDir', path.join(__dirname, '../server')],
             logging: true
         });
-        context.subscriptions.push(workflowServer);
-        await workflowServer.start();
+        context.subscriptions.push(serverProcess);
+        await serverProcess.start();
     }
 
     // Wrap server with quickstart component
