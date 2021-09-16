@@ -32,23 +32,23 @@ import {
     Action
 } from './actions';
 
-import { GlspVscodeAdapterConfiguration, GlspVscodeClient } from './types';
+import { GlspVscodeConnectorOptions, GlspVscodeClient } from './types';
 
 /**
- * The `GlspVscodeAdapter` acts as the bridge between GLSP-Clients and the GLSP-Server
+ * The `GlspVscodeConnector` acts as the bridge between GLSP-Clients and the GLSP-Server
  * and is at the core of the Glsp-VSCode integration.
  *
- * It works by providing a server to the adapter that implements the `GlspVscodeServer`
- * interface and registering clients using the `GlspVscodeAdapter.registerClient`
+ * It works by being providing a server that implements the `GlspVscodeServer`
+ * interface and registering clients using the `GlspVscodeConnector.registerClient`
  * function. Messages sent between the clients and the server are then intercepted
- * by the adapter to provide functionality based on the content of the messages.
+ * by the connector to provide functionality based on the content of the messages.
  *
  * Messages can be intercepted using the interceptor properties in the options
  * argument.
  *
  * Selection updates can be listened to using the `onSelectionUpdate` property.
  */
-export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDocument> implements vscode.Disposable {
+export class GlspVscodeConnector<D extends vscode.CustomDocument = vscode.CustomDocument> implements vscode.Disposable {
 
     /** Maps clientId to corresponding GlspVscodeClient. */
     private readonly clientMap = new Map<string, GlspVscodeClient<D>>();
@@ -57,7 +57,7 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
     /** Maps clientId to selected elementIDs for that client. */
     private readonly clientSelectionMap = new Map<string, string[]>();
 
-    private readonly options: Required<GlspVscodeAdapterConfiguration>;
+    private readonly options: Required<GlspVscodeConnectorOptions>;
     private readonly diagnostics = vscode.languages.createDiagnosticCollection();
     private readonly selectionUpdateEmitter = new vscode.EventEmitter<string[]>();
     private readonly onDocumentSavedEmitter = new vscode.EventEmitter<D>();
@@ -77,7 +77,7 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
      */
     public onDidChangeCustomDocument: vscode.Event<vscode.CustomDocumentEditEvent<D>>;
 
-    constructor(options: GlspVscodeAdapterConfiguration) {
+    constructor(options: GlspVscodeConnectorOptions) {
         // Create default options
         this.options = {
             logging: false,
@@ -96,7 +96,7 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
         this.onDidChangeCustomDocument = this.onDidChangeCustomDocumentEventEmitter.event;
 
         // Set up message listener for server
-        const serverMessageListener = this.options.server.onServerSend(message => {
+        const serverMessageListener = this.options.server.onServerMessage(message => {
             if (this.options.logging) {
                 if (isActionMessage(message)) {
                     console.log(`Server (${message.clientId}): ${message.action.kind}`, message.action);
@@ -106,8 +106,8 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
             }
 
             // Run message through first user-provided interceptor (pre-receive)
-            this.options.onBeforeReceiveMessageFromServer(message, (newMessage, shouldBeProcessedByAdapter) => {
-                if (shouldBeProcessedByAdapter) {
+            this.options.onBeforeReceiveMessageFromServer(message, (newMessage, shouldBeProcessedByConnector) => {
+                if (shouldBeProcessedByConnector) {
                     this.processMessage(newMessage, 'server', (processedMessage, messageChanged) => {
                         // Run message through second user-provided interceptor (pre-send) - processed
                         const filteredMessage = this.options.onBeforePropagateMessageToClient(newMessage, processedMessage, messageChanged);
@@ -133,7 +133,7 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
     }
 
     /**
-     * Register a client on the GLSP-VSCode adapter. All communication will subsequently
+     * Register a client on the GLSP-VSCode connector. All communication will subsequently
      * run through the VSCode integration. Clients do not need to be unregistered
      * as they are automatically disposed of when the panel they belong to is closed.
      *
@@ -144,7 +144,7 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
         this.documentMap.set(client.document, client.clientId);
 
         // Set up message listener for client
-        const clientMessageListener = client.onClientSend(message => {
+        const clientMessageListener = client.onClientMessage(message => {
             if (this.options.logging) {
                 if (isActionMessage(message)) {
                     console.log(`Client (${message.clientId}): ${message.action.kind}`, message.action);
@@ -154,20 +154,20 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
             }
 
             // Run message through first user-provided interceptor (pre-receive)
-            this.options.onBeforeReceiveMessageFromClient(message, (newMessage, shouldBeProcessedByAdapter) => {
-                if (shouldBeProcessedByAdapter) {
+            this.options.onBeforeReceiveMessageFromClient(message, (newMessage, shouldBeProcessedByConnector) => {
+                if (shouldBeProcessedByConnector) {
                     this.processMessage(newMessage, 'client', (processedMessage, messageChanged) => {
                         // Run message through second user-provided interceptor (pre-send) - processed
                         const filteredMessage = this.options.onBeforePropagateMessageToServer(newMessage, processedMessage, messageChanged);
                         if (typeof filteredMessage !== 'undefined') {
-                            this.options.server.onServerReceiveEmitter.fire(filteredMessage);
+                            this.options.server.onSendToServerEmitter.fire(filteredMessage);
                         }
                     });
                 } else {
                     // Run message through second user-provided interceptor (pre-send) - unprocessed
                     const filteredMessage = this.options.onBeforePropagateMessageToServer(newMessage, newMessage, false);
                     if (typeof filteredMessage !== 'undefined') {
-                        this.options.server.onServerReceiveEmitter.fire(filteredMessage);
+                        this.options.server.onSendToServerEmitter.fire(filteredMessage);
                     }
                 }
             });
@@ -200,7 +200,7 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
     public sendActionToActiveClient(action: Action): void {
         this.clientMap.forEach(client => {
             if (client.webviewPanel.active) {
-                client.onClientReceiveEmitter.fire({
+                client.onSendToClientEmitter.fire({
                     clientId: client.clientId,
                     action: action,
                     __localDispatch: true
@@ -218,7 +218,7 @@ export class GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDo
     private sendMessageToClient(clientId: string, message: unknown): void {
         const client = this.clientMap.get(clientId);
         if (client) {
-            client.onClientReceiveEmitter.fire(message);
+            client.onSendToClientEmitter.fire(message);
         }
     }
 

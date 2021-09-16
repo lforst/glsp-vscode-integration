@@ -18,7 +18,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 
 import { isActionMessage, isWebviewReadyMessage } from 'sprotty-vscode-protocol';
-import { GlspVscodeAdapter } from '@eclipse-glsp/vscode-integration';
+import { GlspVscodeConnector } from '@eclipse-glsp/vscode-integration';
 
 const DIAGRAM_TYPE = 'workflow-diagram';
 
@@ -31,21 +31,21 @@ export default class WorkflowEditorProvider implements vscode.CustomEditorProvid
 
     constructor(
         private readonly extensionContext: vscode.ExtensionContext,
-        private readonly glspVscodeAdapter: GlspVscodeAdapter
+        private readonly glspVscodeConnector: GlspVscodeConnector
     ) {
-        this.onDidChangeCustomDocument = glspVscodeAdapter.onDidChangeCustomDocument;
+        this.onDidChangeCustomDocument = glspVscodeConnector.onDidChangeCustomDocument;
     }
 
     saveCustomDocument(document: vscode.CustomDocument, cancellation: vscode.CancellationToken): Thenable<void> {
-        return this.glspVscodeAdapter.saveDocument(document);
+        return this.glspVscodeConnector.saveDocument(document);
     }
 
     saveCustomDocumentAs(document: vscode.CustomDocument, destination: vscode.Uri, cancellation: vscode.CancellationToken): Thenable<void> {
-        return this.glspVscodeAdapter.saveDocument(document, destination);
+        return this.glspVscodeConnector.saveDocument(document, destination);
     }
 
     revertCustomDocument(document: vscode.CustomDocument, cancellation: vscode.CancellationToken): Thenable<void> {
-        return this.glspVscodeAdapter.revertDocument(document, DIAGRAM_TYPE);
+        return this.glspVscodeConnector.revertDocument(document, DIAGRAM_TYPE);
     }
 
     backupCustomDocument(
@@ -118,13 +118,13 @@ export default class WorkflowEditorProvider implements vscode.CustomEditorProvid
             }
         });
 
-        // Register document/diagram panel/model in vscode adapter
-        this.glspVscodeAdapter.registerClient({
+        // Register document/diagram panel/model in vscode connector
+        this.glspVscodeConnector.registerClient({
             clientId: sprottyDiagramIdentifier.clientId,
             document: document,
             webviewPanel: webviewPanel,
-            onClientSend: sendMessageToServerEmitter.event,
-            onClientReceiveEmitter: receiveMessageFromServerEmitter
+            onClientMessage: sendMessageToServerEmitter.event,
+            onSendToClientEmitter: receiveMessageFromServerEmitter
         });
 
         // Initialize diagram

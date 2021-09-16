@@ -20,7 +20,7 @@ import * as vscode from 'vscode';
 
 const START_UP_COMPLETE_MSG = '[GLSP-Server]:Startup completed';
 
-interface JavaSocketServerLaunchOptions {
+interface JavaSocketServerLauncherOptions {
     /** Path to the location of the jar file that should be launched as process */
     readonly jarPath: string;
     /** Port on which the server should listen for new client connections */
@@ -40,13 +40,13 @@ interface JavaSocketServerLaunchOptions {
  * You can pass additional launch arguments through the options.
  *
  * If you need a component to quickly connect your default GLSP server to the GLSP-VSCode
- * integration, take a look at the `GlspServerAdapter` quickstart component.
+ * integration, take a look at the `SocketGlspVscodeServer` quickstart component.
  */
-export class GlspServerStarter implements vscode.Disposable {
-    private readonly options: Required<JavaSocketServerLaunchOptions>;
+export class GlspServerLauncher implements vscode.Disposable {
+    private readonly options: Required<JavaSocketServerLauncherOptions>;
     private serverProcess?: childProcess.ChildProcess;
 
-    constructor(options: JavaSocketServerLaunchOptions) {
+    constructor(options: JavaSocketServerLauncherOptions) {
         // Create default options
         this.options = {
             logging: false,

@@ -15,5 +15,5 @@
  ********************************************************************************/
 
 export * from './actions';
-export * from './glsp-vscode-adapter';
+export * from './glsp-vscode-connector';
 export * from './types';

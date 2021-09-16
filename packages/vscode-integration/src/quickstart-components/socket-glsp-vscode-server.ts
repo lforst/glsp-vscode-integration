@@ -22,7 +22,7 @@ import { isActionMessage } from '../actions';
 
 import { GlspVscodeServer } from '../types';
 
-interface Options {
+interface SocketGlspVscodeServerOptions {
     /** Port of the running server. */
     readonly serverPort: number;
     /** Client ID to register the jsonRPC client with on the server. */
@@ -37,15 +37,15 @@ interface Options {
  * https://github.com/eclipse-glsp/glsp-server
  *
  * It sets up a JSON-RPC connection to a server running on a specified port and
- * provides an interface, ready to be used by the `GlspVscodeAdapter` for the
+ * provides an interface, ready to be used by the `GlspVscodeConnector` for the
  * GLSP-VSCode integration.
  *
  * If you need a component to quickly start your default GLSP server, take a look
  * at the `GlspServerStarter` quickstart component.
  */
-export class GlspServerAdapter implements GlspVscodeServer, vscode.Disposable {
-    readonly onServerReceiveEmitter = new vscode.EventEmitter<unknown>();
-    readonly onServerSend: vscode.Event<unknown>;
+export class SocketGlspVscodeServer implements GlspVscodeServer, vscode.Disposable {
+    readonly onSendToServerEmitter = new vscode.EventEmitter<unknown>();
+    readonly onServerMessage: vscode.Event<unknown>;
 
     private readonly onServerSendEmitter = new vscode.EventEmitter<unknown>();
 
@@ -55,12 +55,12 @@ export class GlspServerAdapter implements GlspVscodeServer, vscode.Disposable {
     private readonly onReady: Promise<void>;
     private setReady: () => void;
 
-    constructor(private readonly options: Options) {
+    constructor(private readonly options: SocketGlspVscodeServerOptions) {
         this.onReady = new Promise(resolve => {
             this.setReady = resolve;
         });
 
-        this.onServerSend = this.onServerSendEmitter.event;
+        this.onServerMessage = this.onServerSendEmitter.event;
 
         const reader = new SocketMessageReader(this.socket);
         const writer = new SocketMessageWriter(this.socket);
@@ -72,7 +72,7 @@ export class GlspServerAdapter implements GlspVscodeServer, vscode.Disposable {
             connectionProvider: connection
         });
 
-        this.onServerReceiveEmitter.event(message => {
+        this.onSendToServerEmitter.event(message => {
             this.onReady.then(() => {
                 if (isActionMessage(message)) {
                     this.glspClient.sendActionMessage(message);
@@ -107,7 +107,7 @@ export class GlspServerAdapter implements GlspVscodeServer, vscode.Disposable {
     }
 
     dispose(): void {
-        this.onServerReceiveEmitter.dispose();
+        this.onSendToServerEmitter.dispose();
         this.onServerSendEmitter.dispose();
         this.stop();
     }

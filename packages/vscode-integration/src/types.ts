@@ -47,22 +47,22 @@ export interface GlspVscodeClient<D extends vscode.CustomDocument = vscode.Custo
      * to the webview.
      *
      * Use the properties `onBeforeReceiveMessageFromServer` and `onBeforePropagateMessageToClient`
-     * of the GlspVscodeAdapter in order to control what messages are propagated
+     * of the GlspVscodeConnector in order to control what messages are propagated
      * and processed.
      */
-    readonly onClientReceiveEmitter: vscode.EventEmitter<unknown>;
+    readonly onSendToClientEmitter: vscode.EventEmitter<unknown>;
 
     /**
-     * This event is used to notify the VSCode integration about messages from the
-     * client.
+     * The VSCode integration will subscribe to this event to listen to messages
+     * from the client.
      *
      * Fire this event with the message the client wants to send to the server.
      *
      * Use the properties `onBeforeReceiveMessageFromClient` and `onBeforePropagateMessageToServer`
-     * of the GlspVscodeAdapter in order to control what messages are propagated
+     * of the GlspVscodeConnector in order to control what messages are propagated
      * and processed.
      */
-    readonly onClientSend: vscode.Event<unknown>;
+    readonly onClientMessage: vscode.Event<unknown>;
 }
 
 /**
@@ -73,27 +73,28 @@ export interface GlspVscodeServer {
 
     /**
      * An event emitter used by the VSCode extension to send messages to the server.
-     * You should listen to the event attached to this emitter to receive messages
-     * from the client/VSCode integration and send it to the server.
+     *
+     * You should subscribe to the event attached to this emitter to receive messages
+     * from the client/VSCode integration and pass them to the server.
      *
      * Use the properties `onBeforeReceiveMessageFromClient` and `onBeforePropagateMessageToServer`
-     * of the GlspVscodeAdapter in order to control what messages are propagated
+     * of the GlspVscodeConnector in order to control what messages are propagated
      * and processed.
      */
-    readonly onServerReceiveEmitter: vscode.EventEmitter<unknown>;
+    readonly onSendToServerEmitter: vscode.EventEmitter<unknown>;
 
     /**
      * An event the VSCode integration uses to receive messages from the server.
      * The messages are then propagated to the client or processed by the VSCode
      * integration to provide functionality.
      *
-     * Fire this event with the message you want to send to the client.
+     * Fire this event with the message the server wants to send to the client.
      *
      * Use the properties `onBeforeReceiveMessageFromServer` and `onBeforePropagateMessageToClient`
-     * of the GlspVscodeAdapter in order to control what messages are propagated
+     * of the GlspVscodeConnector in order to control what messages are propagated
      * and processed.
      */
-    readonly onServerSend: vscode.Event<unknown>;
+    readonly onServerMessage: vscode.Event<unknown>;
 }
 
 interface InterceptorCallback {
@@ -104,15 +105,15 @@ interface InterceptorCallback {
      *
      * @param newMessage The message to be propagated. This value can be anything,
      * however if it is `undefined` the message will not be propagated further.
-     * @param shouldBeProcessedByAdapter Optional parameter indicating whether the
+     * @param shouldBeProcessedByConnector Optional parameter indicating whether the
      * VSCode integration should process the message. That usually means providing
      * functionality based on the message but also modifying it or blocking it from
      * being propagated further.
      */
-    (newMessage: unknown | undefined, shouldBeProcessedByAdapter?: boolean): void;
+    (newMessage: unknown | undefined, shouldBeProcessedByConnector?: boolean): void;
 }
 
-export interface GlspVscodeAdapterConfiguration {
+export interface GlspVscodeConnectorOptions {
 
     /**
      * The GLSP server (or its wrapper) that the VSCode integration should use.

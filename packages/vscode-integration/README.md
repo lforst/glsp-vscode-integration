@@ -41,20 +41,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 </details>
 
 #### Server
-Next we will start a GLSP server from withing the activate function. If you have
-the already running through some other process you can skip this step.
+Next we will start a GLSP server from within the activate function. If you have
+already have the server running through some other process you can skip this step.
 
 If you are using the default GLSP server implementation provided at https://github.com/eclipse-glsp/glsp-server,
-you can use the `GlspServerStarter` [quickstart component](#Quickstart-Components)
+you can use the `GlspServerLauncher` [quickstart component](#Quickstart-Components)
 to start the server with very little code:
 
 <details><summary>Code Example</summary>
 
 ```typescript
-import { GlspServerStarter } from '@eclipse-glsp/vscode-integration/lib/quickstart-components';
+import { GlspServerLauncher } from '@eclipse-glsp/vscode-integration/lib/quickstart-components';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-    const workflowServer = new GlspServerStarter({
+    const workflowServer = new GlspServerLauncher({
         jarPath: '/your/path/to/server.jar',
         serverPort: 5007
     });
@@ -64,34 +64,34 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 ```
 </details>
 
-#### Server Adapter and GLSP VSCode Adapter
-The server adapter is needed to provide an interface for the *GLSP VSCode integration*
+#### Server Interface and GLSP VSCode Connector
+A connector class is needed to provide an interface for the *GLSP VSCode integration*
 to communicate with the server. If you are using the default GLSP server which communicates
-over JSON-RPC, you can make use of the `GlspServerAdapter` [quickstart component](#Quickstart-Components)
+over JSON-RPC, you can make use of the `SocketGlspVscodeServer` [quickstart component](#Quickstart-Components)
 to implement the needed interface with very little boilerplate code.
 
 If we have a server component providing the needed interface we can create an instance
-of the `GlspVscodeAdapter` and provide it with the server adapter. The `GlspVscodeAdapter`
+of the `GlspVscodeConnector` and pass the server component. The `GlspVscodeConnector`
 lies at the core of this package and provides all the needed functionality.
 
 <details><summary>Code Example</summary>
 
 ```typescript
-import { GlspVscodeAdapter } from '@eclipse-glsp/vscode-integration';
-import { GlspServerAdapter } from '@eclipse-glsp/vscode-integration/lib/quickstart-components';
+import { GlspVscodeConnector } from '@eclipse-glsp/vscode-integration';
+import { SocketGlspVscodeServer } from '@eclipse-glsp/vscode-integration/lib/quickstart-components';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
     // (Server startup code from above here...)
 
-    const workflowServerAdapter = new GlspServerAdapter({
+    const workflowServer = new SocketGlspVscodeServer({
         clientId: 'some.client.id',
         clientName: 'SomeClientName',
         serverPort: 5007
     });
 
-    const glspVscodeAdapter = new GlspVscodeAdapter({ server: workflowServerAdapter });
+    const glspVscodeConnector = new GlspVscodeConnector({ server: workflowServer });
 
-    context.subscriptions.push(workflowServerAdapter, glspVscodeAdapter)
+    context.subscriptions.push(workflowServer, glspVscodeConnector)
 }
 ```
 </details>
@@ -106,17 +106,17 @@ your `CustomEditorProvider`, however a few function calls at certain places are
 needed for the integration to work properly:
 
 - The `onDidChangeCustomDocument` of your `CustomEditorProvider` should always fire
-  at least when `GlspVscodeAdapter.onDidChangeCustomDocument` fires.
-- `GlspVscodeAdapter.saveDocument(document)` should be called when `CustomEditorProvider.saveCustomDocument`
+  at least when `GlspVscodeConnector.onDidChangeCustomDocument` fires.
+- `GlspVscodeConnector.saveDocument(document)` should be called when `CustomEditorProvider.saveCustomDocument`
   is called.
-- `GlspVscodeAdapter.saveDocument(document, destination)` should be called when
+- `GlspVscodeConnector.saveDocument(document, destination)` should be called when
   `CustomEditorProvider.saveCustomDocumentAs` is called.
-- `GlspVscodeAdapter.revertDocument()` should be called when `CustomEditorProvider.revertCustomDocument`
+- `GlspVscodeConnector.revertDocument()` should be called when `CustomEditorProvider.revertCustomDocument`
   is called.
 
 Additionally the `resolveCustomEditor` function of the `CustomEditorProvider` act
 as an excellent place to register your GLSP clients. You can do this with the
-`GlspVscodeAdapter.registerClient(client)` function. You are free to choose on how
+`GlspVscodeConnector.registerClient(client)` function. You are free to choose on how
 your clients implement the needed interface, however if you need inspiration on how
 to do it with the default GLSP components, you can take a look at the example
 [here](https://github.com/eclipse-glsp/glsp-vscode-integration/tree/master/example/workflow).
@@ -128,11 +128,11 @@ import MyCustomEditorProvider from './my-custom-editor-provider.ts';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
     // (Server startup code from above here...)
-    // (GlspVscodeAdapter code from above here...)
+    // (GlspVscodeConnector code from above here...)
 
     const customEditorProvider = vscode.window.registerCustomEditorProvider(
         'your.custom.editor',
-        new MyCustomEditorProvider(glspVscodeAdapter),
+        new MyCustomEditorProvider(glspVscodeConnector),
         {
             webviewOptions: { retainContextWhenHidden: true },
             supportsMultipleEditorsPerDocument: false
@@ -150,23 +150,23 @@ export default class WorkflowEditorProvider implements vscode.CustomEditorProvid
     onDidChangeCustomDocument: vscode.Event<vscode.CustomDocumentContentChangeEvent<vscode.CustomDocument>>;
 
     constructor(
-        private readonly glspVscodeAdapter: GlspVscodeAdapter
+        private readonly glspVscodeConnector: GlspVscodeConnector
     ) {
-        this.onDidChangeCustomDocument = glspVscodeAdapter.onDidChangeCustomDocument; // necessary
+        this.onDidChangeCustomDocument = glspVscodeConnector.onDidChangeCustomDocument; // necessary
     }
 
     // (Any other methods needed for the vscode.CustomEditorProvider interface here.)
 
     saveCustomDocument(document: vscode.CustomDocument, cancellation: vscode.CancellationToken): Thenable<void> {
-        return this.glspVscodeAdapter.saveDocument(document); // necessary
+        return this.glspVscodeConnector.saveDocument(document); // necessary
     }
 
     saveCustomDocumentAs(document: vscode.CustomDocument, destination: vscode.Uri, cancellation: vscode.CancellationToken): Thenable<void> {
-        return this.glspVscodeAdapter.saveDocument(document, destination); // necessary
+        return this.glspVscodeConnector.saveDocument(document, destination); // necessary
     }
 
     revertCustomDocument(document: vscode.CustomDocument, cancellation: vscode.CancellationToken): Thenable<void> {
-        return this.glspVscodeAdapter.revertDocument(document, 'your.diagram.type'); // necessary
+        return this.glspVscodeConnector.revertDocument(document, 'your.diagram.type'); // necessary
     }
 
     resolveCustomEditor(document:
@@ -175,18 +175,18 @@ export default class WorkflowEditorProvider implements vscode.CustomEditorProvid
         token: vscode.CancellationToken
     ): void | Thenable<void> {
 
-        const onClientReceiveEmitter = new vscode.EventEmitter<unknown>();
-        const onClientSendEmitter = new vscode.EventEmitter<unknown>();
+        const onSendToClientEmitter = new vscode.EventEmitter<unknown>();
+        const onClientMessage = new vscode.EventEmitter<unknown>();
 
-        // (Your code to send event content to webview here using onClientReceiveEmitter.)
+        // (Your code to send event content to webview here using onSendToClientEmitter.)
         // (Your code to emit messages from client with onClientSendEmitter.)
 
-        this.glspVscodeAdapter.registerClient({
+        this.glspVscodeConnector.registerClient({
             clientId: 'your.glsp.client.id.here', // Should be different each time resolve custom Editor is called - must be equal to the ids the client will send in its messages
             document: document,
             webviewPanel: webviewPanel,
-            onClientSend: onClientSendEmitter.event,
-            onClientReceiveEmitter: onClientReceiveEmitter
+            onClientMessage: onClientSendEmitter.event,
+            onSendToClientEmitter: onSendToClientEmitter
         });
 
         webviewPanel.webview.html = `(Your webview HTML here)`;
@@ -196,7 +196,7 @@ export default class WorkflowEditorProvider implements vscode.CustomEditorProvid
 </details>
 
 #### Final touches
-All that's left to do is a final call to start the server adapter and the extension
+All that's left to do is a final call to start the server and the extension
 should be up and running.
 
 <details><summary>Code Example</summary>
@@ -205,18 +205,18 @@ should be up and running.
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
     // (Server startup code from above here...)
-    // (GlspVscodeAdapter code from above here...)
+    // (GlspVscodeConnector code from above here...)
     // (CustomEditorProvider code from above here...)
 
-    workflowServerAdapter.start();
+    workflowServer.start();
 }
 ```
 </details>
 
 ## API
-This package exports a number of members, the most important one being the `GlspVscodeAdapter`-Class.
+This package exports a number of members, the most important one being the `GlspVscodeConnector`-Class.
 
-### GlspVscodeAdapter
+### GlspVscodeConnector
 This is the core of the VSCode integration and provides various functionality. It
 primarily intercepts certain GLSP Actions sent from the clients or server to trigger
 VSCode specific contributions. This currently includes:
@@ -230,10 +230,10 @@ VSCode specific contributions. This currently includes:
 - Providing element selection context to extensions
 
 #### Options
-The `GlspVscodeAdapter` takes one constructor argument - an object containing its configuration.
+The `GlspVscodeConnector` takes one constructor argument - an object containing its configuration.
 
 ```typescript
-interface GlspVscodeAdapterConfiguration {
+export interface GlspVscodeConnectorOptions {
 
     /**
      * The GLSP server (or its wrapper) that the VSCode integration should use.
@@ -320,7 +320,7 @@ interface GlspVscodeAdapterConfiguration {
 #### Methods and Fields
 
 ```typescript
-interface GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDocument> extends vscode.Disposable {
+interface GlspVscodeConnector<D extends vscode.CustomDocument = vscode.CustomDocument> extends vscode.Disposable {
 
   /**
    * A subscribable event which fires with an array containing the IDs of all
@@ -336,7 +336,7 @@ interface GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDocum
   onDidChangeCustomDocument: vscode.Event<vscode.CustomDocumentEditEvent<D>>;
 
   /**
-   * Register a client on the GLSP-VSCode adapter. All communication will subsequently
+   * Register a client on the GLSP-VSCode connector. All communication will subsequently
    * run through the VSCode integration. Clients do not need to be unregistered
    * as they are automatically disposed of when the panel they belong to is closed.
    *
@@ -382,31 +382,32 @@ interface GlspVscodeAdapter<D extends vscode.CustomDocument = vscode.CustomDocum
  * The server or server wrapper used by the VSCode integration needs to implement
  * this interface.
  */
-interface GlspVscodeServer {
+export interface GlspVscodeServer {
 
     /**
      * An event emitter used by the VSCode extension to send messages to the server.
-     * You should listen to the event attached to this emitter to receive messages
-     * from the client/VSCode integration and send it to the server.
+     *
+     * You should subscribe to the event attached to this emitter to receive messages
+     * from the client/VSCode integration and pass them to the server.
      *
      * Use the properties `onBeforeReceiveMessageFromClient` and `onBeforePropagateMessageToServer`
-     * of the GlspVscodeAdapter in order to control what messages are propagated
+     * of the GlspVscodeConnector in order to control what messages are propagated
      * and processed.
      */
-    readonly onServerReceiveEmitter: vscode.EventEmitter<unknown>;
+    readonly onSendToServerEmitter: vscode.EventEmitter<unknown>;
 
     /**
      * An event the VSCode integration uses to receive messages from the server.
      * The messages are then propagated to the client or processed by the VSCode
      * integration to provide functionality.
      *
-     * Fire this event with the message you want to send to the client.
+     * Fire this event with the message the server wants to send to the client.
      *
      * Use the properties `onBeforeReceiveMessageFromServer` and `onBeforePropagateMessageToClient`
-     * of the GlspVscodeAdapter in order to control what messages are propagated
+     * of the GlspVscodeConnector in order to control what messages are propagated
      * and processed.
      */
-    readonly onServerSend: vscode.Event<unknown>;
+    readonly onServerMessage: vscode.Event<unknown>;
 }
 ```
 
@@ -417,7 +418,7 @@ interface GlspVscodeServer {
  * Any clients registered on the GLSP VSCode integration need to implement this
  * interface.
  */
-interface GlspVscodeClient<D extends vscode.CustomDocument = vscode.CustomDocument> {
+export interface GlspVscodeClient<D extends vscode.CustomDocument = vscode.CustomDocument> {
 
     /**
      * A unique identifier for the client/panel with which the client will be registered
@@ -444,22 +445,22 @@ interface GlspVscodeClient<D extends vscode.CustomDocument = vscode.CustomDocume
      * to the webview.
      *
      * Use the properties `onBeforeReceiveMessageFromServer` and `onBeforePropagateMessageToClient`
-     * of the GlspVscodeAdapter in order to control what messages are propagated
+     * of the GlspVscodeConnector in order to control what messages are propagated
      * and processed.
      */
-    readonly onClientReceiveEmitter: vscode.EventEmitter<unknown>;
+    readonly onSendToClientEmitter: vscode.EventEmitter<unknown>;
 
     /**
-     * This event is used to notify the VSCode integration about messages from the
-     * client.
+     * The VSCode integration will subscribe to this event to listen to messages
+     * from the client.
      *
      * Fire this event with the message the client wants to send to the server.
      *
      * Use the properties `onBeforeReceiveMessageFromClient` and `onBeforePropagateMessageToServer`
-     * of the GlspVscodeAdapter in order to control what messages are propagated
+     * of the GlspVscodeConnector in order to control what messages are propagated
      * and processed.
      */
-    readonly onClientSend: vscode.Event<unknown>;
+    readonly onClientMessage: vscode.Event<unknown>;
 }
 ```
 
@@ -472,12 +473,12 @@ They can be imported using
 import * as QuickstartComponents from '@eclipse-glsp/vscode-integration/lib/quickstart-components';
 ```
 
-#### GlspServerStarter
+#### GlspServerLauncher
 A small class used to start a default implementation GLSP server.
 
 ```ts
-interface GlspServerStarter extends vscode.Disposable {
-    constructor(options: JavaSocketServerLaunchOptions);
+interface GlspServerLauncher extends vscode.Disposable {
+    constructor(options: JavaSocketServerLauncherOptions);
 
     /**
      * Starts up the server.
@@ -490,7 +491,7 @@ interface GlspServerStarter extends vscode.Disposable {
     stop(): void;
 }
 
-interface JavaSocketServerLaunchOptions {
+interface JavaSocketServerLauncherOptions {
     /** Path to the location of the jar file that should be launched as process */
     readonly jarPath: string;
     /** Port on which the server should listen for new client connections */
@@ -502,12 +503,12 @@ interface JavaSocketServerLaunchOptions {
 }
 ```
 
-#### GlspServerAdapter
+#### SocketGlspVscodeServer
 A can component that provides the right interface for the GLSP VSCode integration
 to be used as server and which can connect to a default implementation GLSP server.
 
 ```ts
-interface GlspServerAdapterOptions {
+interface SocketGlspVscodeServerOptions {
     /** Port of the running server. */
     readonly serverPort: number;
     /** Client ID to register the jsonRPC client with on the server. */
@@ -516,9 +517,9 @@ interface GlspServerAdapterOptions {
     readonly clientName: string;
 }
 
-interface GlspServerAdapter extends GlspVscodeServer, vscode.Disposable {
+interface SocketGlspVscodeServer extends GlspVscodeServer, vscode.Disposable {
 
-    constructor(private readonly options: GlspServerAdapterOptions);
+    constructor(private readonly options: SocketGlspVscodeServerOptions);
 
     /**
      * Starts up the JSON-RPC client and connects it to a running server.
