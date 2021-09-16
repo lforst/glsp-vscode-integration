@@ -75,30 +75,37 @@ export class GlspServerLauncher implements vscode.Disposable {
             const process = childProcess.spawn('java', args);
             this.serverProcess = process;
 
-            process.stderr.on('data', data => {
-                if (data && this.options.logging) {
-                    console.error('GLSP-Server:', data.toString());
-                }
-            });
-
             process.stdout.on('data', data => {
                 if (data.toString().includes(START_UP_COMPLETE_MSG)) {
                     resolve();
                 }
 
-                if (this.options.logging) {
-                    console.log('GLSP-Server:', data.toString());
-                }
+                this.handleStdoutData(data);
             });
 
-            process.on('error', error => {
-                if (this.options.logging) {
-                    console.error('GLSP-Server:', error);
-                }
-
-                throw error;
-            });
+            process.stderr.on('data', this.handleStderrData);
+            process.on('error', this.handleProcessError);
         });
+    }
+
+    protected handleStdoutData(data: string | Buffer): void {
+        if (this.options.logging) {
+            console.log('GLSP-Server:', data.toString());
+        }
+    }
+
+    protected handleStderrData(data: string | Buffer): void {
+        if (data && this.options.logging) {
+            console.error('GLSP-Server:', data.toString());
+        }
+    }
+
+    protected handleProcessError(error: Error): never {
+        if (this.options.logging) {
+            console.error('GLSP-Server:', error);
+        }
+
+        throw error;
     }
 
     /**
