@@ -87,8 +87,8 @@ export class GlspVscodeConnector<D extends vscode.CustomDocument = vscode.Custom
             onBeforeReceiveMessageFromServer: (message, callback) => {
                 callback(message, true);
             },
-            onBeforePropagateMessageToClient: (originalMessage, processedMessage) => processedMessage,
-            onBeforePropagateMessageToServer: (originalMessage, processedMessage) => processedMessage,
+            onBeforePropagateMessageToClient: (_originalMessage, processedMessage) => processedMessage,
+            onBeforePropagateMessageToServer: (_originalMessage, processedMessage) => processedMessage,
             ...options
         };
 
