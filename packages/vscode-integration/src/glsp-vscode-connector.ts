@@ -51,18 +51,18 @@ import { GlspVscodeConnectorOptions, GlspVscodeClient } from './types';
 export class GlspVscodeConnector<D extends vscode.CustomDocument = vscode.CustomDocument> implements vscode.Disposable {
 
     /** Maps clientId to corresponding GlspVscodeClient. */
-    private readonly clientMap = new Map<string, GlspVscodeClient<D>>();
+    protected readonly clientMap = new Map<string, GlspVscodeClient<D>>();
     /** Maps Documents to corresponding clientId. */
-    private readonly documentMap = new Map<D, string>();
+    protected readonly documentMap = new Map<D, string>();
     /** Maps clientId to selected elementIDs for that client. */
-    private readonly clientSelectionMap = new Map<string, string[]>();
+    protected readonly clientSelectionMap = new Map<string, string[]>();
 
-    private readonly options: Required<GlspVscodeConnectorOptions>;
-    private readonly diagnostics = vscode.languages.createDiagnosticCollection();
-    private readonly selectionUpdateEmitter = new vscode.EventEmitter<string[]>();
-    private readonly onDocumentSavedEmitter = new vscode.EventEmitter<D>();
-    private readonly onDidChangeCustomDocumentEventEmitter = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<D>>();
-    private readonly disposables: vscode.Disposable[] = [];
+    protected readonly options: Required<GlspVscodeConnectorOptions>;
+    protected readonly diagnostics = vscode.languages.createDiagnosticCollection();
+    protected readonly selectionUpdateEmitter = new vscode.EventEmitter<string[]>();
+    protected readonly onDocumentSavedEmitter = new vscode.EventEmitter<D>();
+    protected readonly onDidChangeCustomDocumentEventEmitter = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<D>>();
+    protected readonly disposables: vscode.Disposable[] = [];
 
     /**
      * A subscribable event which fires with an array containing the IDs of all
@@ -215,7 +215,7 @@ export class GlspVscodeConnector<D extends vscode.CustomDocument = vscode.Custom
      * @param clientId Id of client.
      * @param message Message to send.
      */
-    private sendMessageToClient(clientId: string, message: unknown): void {
+    protected sendMessageToClient(clientId: string, message: unknown): void {
         const client = this.clientMap.get(clientId);
         if (client) {
             client.onSendToClientEmitter.fire(message);
@@ -228,7 +228,7 @@ export class GlspVscodeConnector<D extends vscode.CustomDocument = vscode.Custom
      * @param clientId Id of client.
      * @param action Action to send.
      */
-    private sendActionToClient(clientId: string, action: Action): void {
+    protected sendActionToClient(clientId: string, action: Action): void {
         this.sendMessageToClient(clientId, {
             clientId: clientId,
             action: action,
@@ -248,7 +248,7 @@ export class GlspVscodeConnector<D extends vscode.CustomDocument = vscode.Custom
      * a flag indicating whether the propagated message differs from the original
      * message.
      */
-    private processMessage(
+    protected processMessage(
         message: unknown,
         origin: 'client' | 'server',
         callback: (

@@ -30,8 +30,8 @@ export default class WorkflowEditorProvider implements vscode.CustomEditorProvid
     onDidChangeCustomDocument: vscode.Event<vscode.CustomDocumentContentChangeEvent<vscode.CustomDocument>>;
 
     constructor(
-        private readonly extensionContext: vscode.ExtensionContext,
-        private readonly glspVscodeConnector: GlspVscodeConnector
+        protected readonly extensionContext: vscode.ExtensionContext,
+        protected readonly glspVscodeConnector: GlspVscodeConnector
     ) {
         this.onDidChangeCustomDocument = glspVscodeConnector.onDidChangeCustomDocument;
     }

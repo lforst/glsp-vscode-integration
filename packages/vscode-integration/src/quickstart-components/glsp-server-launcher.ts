@@ -43,8 +43,8 @@ interface JavaSocketServerLauncherOptions {
  * integration, take a look at the `SocketGlspVscodeServer` quickstart component.
  */
 export class GlspServerLauncher implements vscode.Disposable {
-    private readonly options: Required<JavaSocketServerLauncherOptions>;
-    private serverProcess?: childProcess.ChildProcess;
+    protected readonly options: Required<JavaSocketServerLauncherOptions>;
+    protected serverProcess?: childProcess.ChildProcess;
 
     constructor(options: JavaSocketServerLauncherOptions) {
         // Create default options

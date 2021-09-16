@@ -47,15 +47,15 @@ export class SocketGlspVscodeServer implements GlspVscodeServer, vscode.Disposab
     readonly onSendToServerEmitter = new vscode.EventEmitter<unknown>();
     readonly onServerMessage: vscode.Event<unknown>;
 
-    private readonly onServerSendEmitter = new vscode.EventEmitter<unknown>();
+    protected readonly onServerSendEmitter = new vscode.EventEmitter<unknown>();
 
-    private readonly socket = new net.Socket();
-    private readonly glspClient: BaseJsonrpcGLSPClient;
+    protected readonly socket = new net.Socket();
+    protected readonly glspClient: BaseJsonrpcGLSPClient;
 
-    private readonly onReady: Promise<void>;
-    private setReady: () => void;
+    protected readonly onReady: Promise<void>;
+    protected setReady: () => void;
 
-    constructor(private readonly options: SocketGlspVscodeServerOptions) {
+    constructor(protected readonly options: SocketGlspVscodeServerOptions) {
         this.onReady = new Promise(resolve => {
             this.setReady = resolve;
         });
