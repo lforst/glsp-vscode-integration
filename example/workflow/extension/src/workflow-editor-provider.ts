@@ -17,119 +17,20 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
-import { isActionMessage, isWebviewReadyMessage } from 'sprotty-vscode-protocol';
 import { GlspVscodeConnector } from '@eclipse-glsp/vscode-integration';
+import { GlspEditorProvider } from '@eclipse-glsp/vscode-integration/lib/quickstart-components';
 
-const DIAGRAM_TYPE = 'workflow-diagram';
-
-export default class WorkflowEditorProvider implements vscode.CustomEditorProvider {
-
-    /** Used to generate continuous and unique clientIds - TODO: consider replacing this with uuid. */
-    private viewCount = 0;
-
-    onDidChangeCustomDocument: vscode.Event<vscode.CustomDocumentContentChangeEvent<vscode.CustomDocument>>;
+export default class WorkflowEditorProvider extends GlspEditorProvider {
+    diagramType = 'workflow-diagram';
 
     constructor(
         protected readonly extensionContext: vscode.ExtensionContext,
         protected readonly glspVscodeConnector: GlspVscodeConnector
     ) {
-        this.onDidChangeCustomDocument = glspVscodeConnector.onDidChangeCustomDocument;
+        super(glspVscodeConnector);
     }
 
-    saveCustomDocument(document: vscode.CustomDocument, _cancellation: vscode.CancellationToken): Thenable<void> {
-        return this.glspVscodeConnector.saveDocument(document);
-    }
-
-    saveCustomDocumentAs(document: vscode.CustomDocument, destination: vscode.Uri, _cancellation: vscode.CancellationToken): Thenable<void> {
-        return this.glspVscodeConnector.saveDocument(document, destination);
-    }
-
-    revertCustomDocument(document: vscode.CustomDocument, _cancellation: vscode.CancellationToken): Thenable<void> {
-        return this.glspVscodeConnector.revertDocument(document, DIAGRAM_TYPE);
-    }
-
-    backupCustomDocument(
-        document: vscode.CustomDocument,
-        context: vscode.CustomDocumentBackupContext,
-        cancellation: vscode.CancellationToken
-    ): Thenable<vscode.CustomDocumentBackup> {
-        // Basically do the bare minimum - which is nothing
-        return Promise.resolve({ id: context.destination.toString(), delete: () => undefined });
-    }
-
-    openCustomDocument(uri: vscode.Uri, _openContext: vscode.CustomDocumentOpenContext, _token: vscode.CancellationToken): vscode.CustomDocument | Thenable<vscode.CustomDocument> {
-        // Return the most basic implementation possible.
-        return { uri, dispose: () => undefined };
-    }
-
-    resolveCustomEditor(document: vscode.CustomDocument, webviewPanel: vscode.WebviewPanel, _token: vscode.CancellationToken): void | Thenable<void> {
-        // This is used to initialize sprotty for our diagram
-        const sprottyDiagramIdentifier = {
-            diagramType: DIAGRAM_TYPE,
-            uri: serializeUri(document.uri),
-            clientId: `${DIAGRAM_TYPE}_${this.viewCount++}`
-        };
-
-        // Promise that resolves when sprotty sends its ready-message
-        const webviewReadyPromise = new Promise<void>(resolve => {
-            const messageListener = webviewPanel.webview.onDidReceiveMessage((message: unknown) => {
-                if (isWebviewReadyMessage(message)) {
-                    resolve();
-                    messageListener.dispose();
-                }
-            });
-        });
-
-        const sendMessageToWebview = async (message: unknown): Promise<void> => {
-            webviewReadyPromise.then(() => {
-                if (webviewPanel.active) {
-                    webviewPanel.webview.postMessage(message);
-                } else {
-                    console.log('Message stalled for webview:', document.uri.path, message);
-                    const viewStateListener = webviewPanel.onDidChangeViewState(() => {
-                        viewStateListener.dispose();
-                        sendMessageToWebview(message);
-                    });
-                }
-            });
-        };
-
-        const receiveMessageFromServerEmitter = new vscode.EventEmitter<unknown>();
-        const sendMessageToServerEmitter = new vscode.EventEmitter<unknown>();
-
-        webviewPanel.onDidDispose(() => {
-            receiveMessageFromServerEmitter.dispose();
-            sendMessageToServerEmitter.dispose();
-        });
-
-        // Listen for Messages from webview (only after ready-message has been received)
-        webviewReadyPromise.then(() => {
-            webviewPanel.webview.onDidReceiveMessage((message: unknown) => {
-                if (isActionMessage(message)) {
-                    sendMessageToServerEmitter.fire(message);
-                }
-            });
-        });
-
-        // Listen for Messages from server
-        receiveMessageFromServerEmitter.event(message => {
-            if (isActionMessage(message)) {
-                sendMessageToWebview(message);
-            }
-        });
-
-        // Register document/diagram panel/model in vscode connector
-        this.glspVscodeConnector.registerClient({
-            clientId: sprottyDiagramIdentifier.clientId,
-            document: document,
-            webviewPanel: webviewPanel,
-            onClientMessage: sendMessageToServerEmitter.event,
-            onSendToClientEmitter: receiveMessageFromServerEmitter
-        });
-
-        // Initialize diagram
-        sendMessageToWebview(sprottyDiagramIdentifier);
-
+    setUpWebview(_document: vscode.CustomDocument, webviewPanel: vscode.WebviewPanel, _token: vscode.CancellationToken, clientId: string): void {
         const localResourceRootsUri = vscode.Uri.file(
             path.join(this.extensionContext.extensionPath, './pack')
         );
@@ -155,18 +56,9 @@ export default class WorkflowEditorProvider implements vscode.CustomEditorProvid
                         crossorigin="anonymous">
                 </head>
                 <body>
-                    <div id="${sprottyDiagramIdentifier.clientId}_container" style="height: 100%;"></div>
+                    <div id="${clientId}_container" style="height: 100%;"></div>
                     <script src="${webviewPanel.webview.asWebviewUri(webviewScriptSourceUri).toString()}"></script>
                 </body>
             </html>`;
     }
-}
-
-function serializeUri(uri: vscode.Uri): string {
-    let uriString = uri.toString();
-    const match = uriString.match(/file:\/\/\/([a-z])%3A/i);
-    if (match) {
-        uriString = 'file:///' + match[1] + ':' + uriString.substring(match[0].length);
-    }
-    return uriString;
 }

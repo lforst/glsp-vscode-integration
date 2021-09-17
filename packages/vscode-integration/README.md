@@ -114,11 +114,15 @@ needed for the integration to work properly:
 - `GlspVscodeConnector.revertDocument()` should be called when `CustomEditorProvider.revertCustomDocument`
   is called.
 
-Additionally the `resolveCustomEditor` function of the `CustomEditorProvider` act
-as an excellent place to register your GLSP clients. You can do this with the
-`GlspVscodeConnector.registerClient(client)` function. You are free to choose on how
-your clients implement the needed interface, however if you need inspiration on how
-to do it with the default GLSP components, you can take a look at the example
+You can use the `GlspEditorProvider` [quickstart component](#Quickstart-Components)
+to set up such an editor provider without much boilerplate code.
+
+If you chose to create a `CustomEditorProvider` yourself, the `resolveCustomEditor`
+function of the `CustomEditorProvider` act as an excellent place to register your
+GLSP clients. You can do this with the `GlspVscodeConnector.registerClient(client)`
+function. You are free to choose on how your clients implement the needed interface,
+however if you need inspiration on how to do it with the default GLSP components,
+you can take a look at the example
 [here](https://github.com/eclipse-glsp/glsp-vscode-integration/tree/master/example/workflow).
 
 <details><summary>Code Example</summary>
@@ -530,6 +534,33 @@ interface SocketGlspVscodeServer extends GlspVscodeServer, vscode.Disposable {
      * Stops the client. It cannot be restarted.
      */
     async stop(): Promise<void>;
+}
+```
+
+#### GlspEditorProvider
+An extensible base class to create a CustomEditorProvider that takes care of diagram
+initialization and custom document events.
+
+Webview setup needs to be implemented.
+
+```ts
+export abstract class GlspEditorProvider implements vscode.CustomEditorProvider {
+    /**
+     * The diagram type identifier the diagram server is responsible for.
+     */
+    abstract diagramType: string;
+
+    constructor(protected readonly glspVscodeConnector: GlspVscodeConnector);
+
+    /**
+     * Used to set up the webview within the webview panel.
+     */
+    abstract setUpWebview(
+        document: vscode.CustomDocument,
+        webviewPanel: vscode.WebviewPanel,
+        token: vscode.CancellationToken,
+        clientId: string
+    ): void;
 }
 ```
 
