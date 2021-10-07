@@ -7,9 +7,12 @@ const outputPath = path.resolve(__dirname, '../extension/pack');
 const config = {
     target: 'web',
 
-    entry: path.resolve(__dirname, 'src/main.ts'),
+    entry: [
+        path.resolve(__dirname, 'src/webview.ts'),
+        path.resolve(__dirname, 'src/context-menu.tsx')
+    ],
     output: {
-		filename: 'webview.js',
+        filename: 'webview.js',
         path: outputPath
     },
     devtool: 'eval-source-map',
@@ -30,12 +33,19 @@ const config = {
             },
             {
                 test: /\.css$/,
-                exclude: /\.useable\.css$/,
+                exclude: /\.(useable|module)\.css$/,
                 use: ['style-loader', 'css-loader']
+            },
+            {
+                test: /\.module\.css$/,
+                use: [
+                    { loader: 'style-loader' },
+                    { loader: 'css-loader', options: { modules: true } }
+                ]
             }
         ]
     },
-    node : { fs: 'empty', net: 'empty' }
+    node: { fs: 'empty', net: 'empty' }
 };
 
 module.exports = config;

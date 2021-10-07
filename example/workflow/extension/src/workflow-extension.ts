@@ -24,7 +24,9 @@ import {
     LayoutOperation,
     FitToScreenAction,
     CenterAction,
-    RequestExportSvgAction
+    RequestExportSvgAction,
+    isActionMessage,
+    SetContextActionsAction
 } from '@eclipse-glsp/vscode-integration';
 
 import {
@@ -59,7 +61,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // Initialize GLSP-VSCode connector with server wrapper
     const glspVscodeConnector = new GlspVscodeConnector({
         server: workflowServer,
-        logging: true
+        logging: true,
+        onBeforePropagateMessageToClient: (_originalMessage, processedMessage) => {
+            if (isActionMessage(processedMessage)) {
+                if (SetContextActionsAction.is(processedMessage.action)) {
+                    processedMessage.action.actions.unshift({
+                        label: 'Navigate', actions: [], children: [
+                            { label: 'Center Diagram', actions: [new CenterAction(selectedElements)] },
+                            { label: 'Fit to screen', actions: [new FitToScreenAction(selectedElements)] }
+                        ]
+                    });
+                }
+            }
+
+            return processedMessage;
+        }
     });
 
     const customEditorProvider = vscode.window.registerCustomEditorProvider(

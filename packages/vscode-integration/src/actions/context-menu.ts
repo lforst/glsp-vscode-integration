@@ -14,12 +14,22 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-export * from './action';
-export * from './context-menu';
-export * from './export';
-export * from './save-state';
-export * from './external-navigation';
-export * from './markers';
-export * from './navigation';
-export * from './operation';
-export * from './selection';
+import { Action } from './action';
+
+interface Args { [key: string]: string | number | boolean }
+
+interface LabeledAction {
+    label: string;
+    actions: Action[];
+    icon?: string;
+    children?: LabeledAction[];
+}
+
+export class SetContextActionsAction implements Action {
+    static readonly KIND = 'setContextActions';
+    constructor(public readonly actions: LabeledAction[], public readonly args?: Args, public readonly kind = SetContextActionsAction.KIND) { }
+
+    static is(action?: Action): action is SetContextActionsAction {
+        return action !== undefined && action.kind === SetContextActionsAction.KIND && 'actions' in action;
+    }
+}

@@ -1,0 +1,62 @@
+.mainComponent {
+    position: absolute;
+    width: 0;
+    height: 0;
+}
+
+.contextMenu {
+    position: relative;
+    top: 0;
+    left: 100%;
+    width: 220px;
+    background-color: var(--vscode-menu-background);
+	box-shadow:0 1px 4px 1px var(--vscode-widget-shadow);
+	color:var(--vscode-menu-foreground);
+}
+
+body:global(.vscode-high-contrast) .contextMenu {
+    outline: 1px solid var(--vscode-menu-border, transparent);
+    outline-offset: -1px;
+}
+
+.contextMenu ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.contextMenuItem {
+    padding: 8px;
+    display: flex;
+    align-items: center;
+	cursor: default;
+}
+
+.contextMenuItem:hover {
+	background-color:var(--vscode-menu-selectionBackground, var(--vscode-menu-background));
+	color:var(--vscode-menu-selectionForeground, var(--vscode-menu-foreground));
+}
+
+body:global(.vscode-high-contrast) .contextMenuItem:hover {
+	outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
+	outline-offset: -2px;
+}
+
+.contextMenuItem label {
+    display: block;
+    flex-grow: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 13px;
+}
+
+.contextMenuItem i {
+    margin-left: 8px;
+    flex-grow: 0;
+    font-size: 16px;
+}
+
+.contextMenuChildContainer {
+    height: 0;
+}
